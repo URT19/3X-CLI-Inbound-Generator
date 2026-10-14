@@ -1,0 +1,89 @@
+{
+  "template_id": "tls_tuic_direct",
+  "number": 23,
+  "client_flow": "",
+  "deprecated": null,
+  "name": "23. TUIC v5 Direct (UDP)",
+  "template_version": "1.1.0",
+  "source": {
+    "repo": "https://github.com/URT19/3x-ui-generator",
+    "commit": "46439c4",
+    "file": "templates.js",
+    "source_content_id": null,
+    "source_port": 35342
+  },
+  "connection_mode": "direct",
+  "protocol": "tuic",
+  "transport": "tuic",
+  "security": "tls",
+  "port": {
+    "default": null,
+    "reserved": [
+      80,
+      443
+    ],
+    "note": "Port must be supplied when creating the inbound. The source default is not used."
+  },
+  "required_inputs": [
+    "CERT_DIRECT",
+    "KEY_DIRECT",
+    "PORT",
+    "SUBDOMAIN_DIRECT"
+  ],
+  "placeholders": [
+    "CERT_DIRECT",
+    "KEY_DIRECT",
+    "PORT",
+    "SUBDOMAIN_DIRECT"
+  ],
+  "naming": {
+    "remark_default": null,
+    "tag_pattern": "in-{PORT}-tcp"
+  },
+  "validation": {
+    "port_range": [
+      1,
+      65535
+    ],
+    "reserved_ports": [
+      80,
+      443
+    ],
+    "protocol_allowed": [
+      "amneziawg",
+      "hysteria",
+      "trojan",
+      "tuic",
+      "vless",
+      "vmess"
+    ]
+  },
+  "external_proxies": [],
+  "content": {
+    "listen": "",
+    "port": "{{PORT}}",
+    "protocol": "tuic",
+    "tag": "in-{{PORT}}-udp",
+    "settings": {
+      "certificate": "{{CERT_DIRECT}}",
+      "private_key": "{{KEY_DIRECT}}",
+      "congestion_control": "bbr",
+      "alpn": [
+        "h3"
+      ],
+      "udp_relay_mode": "native",
+      "zero_rtt_handshake": true,
+      "max_idle_time": 15,
+      "authentication_timeout": 3,
+      "max_udp_relay_packet_size": 1500,
+      "sni": "{{SUBDOMAIN_DIRECT}}",
+      "clients": []
+    },
+    "sniffing": {
+      "enabled": false
+    },
+    "nodeId": null,
+    "fallbackParent": null,
+    "enable": true
+  }
+}

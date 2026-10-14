@@ -1,0 +1,112 @@
+{
+  "template_id": "http_ws_cdn_vless",
+  "number": 18,
+  "client_flow": "",
+  "deprecated": {
+    "reason": "ws transport is deprecated in Xray-core",
+    "replace": "XHTTP (H2 and H3); the XHTTP templates use the same connection mode"
+  },
+  "name": "18. VLESS WS Plain CDN (No TLS)",
+  "template_version": "1.1.0",
+  "source": {
+    "repo": "https://github.com/URT19/3x-ui-generator",
+    "commit": "46439c4",
+    "file": "templates.js",
+    "source_content_id": 22,
+    "source_port": 2052
+  },
+  "connection_mode": "cdn",
+  "protocol": "vless",
+  "transport": "ws",
+  "security": "plain",
+  "port": {
+    "default": null,
+    "reserved": [
+      80,
+      443
+    ],
+    "note": "Port must be supplied when creating the inbound. The source default is not used."
+  },
+  "required_inputs": [
+    "PATH_WS",
+    "PORT",
+    "SUBDOMAIN_CDN",
+    "WHITELIST_IP"
+  ],
+  "placeholders": [
+    "PATH_WS",
+    "PORT",
+    "SUBDOMAIN_CDN",
+    "WHITELIST_IP"
+  ],
+  "naming": {
+    "remark_default": "18- http WS CDN vless",
+    "tag_pattern": "in-{PORT}-tcp"
+  },
+  "validation": {
+    "port_range": [
+      1,
+      65535
+    ],
+    "reserved_ports": [
+      80,
+      443
+    ],
+    "protocol_allowed": [
+      "amneziawg",
+      "hysteria",
+      "trojan",
+      "tuic",
+      "vless",
+      "vmess"
+    ]
+  },
+  "external_proxies": [
+    {
+      "remark": "imported 1",
+      "address": "{{WHITELIST_IP}}",
+      "port": 2052,
+      "security": "same",
+      "sni": "",
+      "alpn": [],
+      "sortOrder": 0
+    }
+  ],
+  "content": {
+    "remark": "18- http WS CDN vless",
+    "enable": true,
+    "expiryTime": 0,
+    "trafficReset": "never",
+    "listen": "",
+    "port": "{{PORT}}",
+    "protocol": "vless",
+    "settings": {
+      "clients": [],
+      "decryption": "none",
+      "encryption": "none"
+    },
+    "streamSettings": {
+      "network": "ws",
+      "wsSettings": {
+        "acceptProxyProtocol": false,
+        "path": "{{PATH_WS}}",
+        "host": "{{SUBDOMAIN_CDN}}",
+        "headers": {},
+        "heartbeatPeriod": 0
+      },
+      "security": "none"
+    },
+    "tag": "in-{{PORT}}-tcp",
+    "sniffing": {
+      "enabled": true,
+      "destOverride": [
+        "http",
+        "tls",
+        "quic",
+        "fakedns"
+      ]
+    },
+    "nodeId": null,
+    "fallbackParent": null
+  }
+}

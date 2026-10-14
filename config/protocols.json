@@ -1,0 +1,62 @@
+{
+  "panel_source": "https://github.com/MHSanaei/3x-ui",
+  "panel_source_tag": "v3.10.0",
+  "checked": "2026-10-13",
+  "protocols": [
+    {
+      "name": "vmess",
+      "status": "templates",
+      "note": "CDN and direct templates in inbounds/"
+    },
+    {
+      "name": "vless",
+      "status": "templates",
+      "note": "CDN and direct templates in inbounds/"
+    },
+    {
+      "name": "trojan",
+      "status": "templates",
+      "note": "CDN template (WS, TLS) in inbounds/"
+    },
+    {
+      "name": "tuic",
+      "status": "templates",
+      "note": "TUIC v5 direct template (UDP). Uses the direct domain certificate and SNI. Settings from the panel source v3.10.0."
+    },
+    {
+      "name": "amneziawg",
+      "status": "templates",
+      "note": "AmneziaWG direct template (UDP). Keys and parameters come from menu 3 item 12 (proposal, confirm or edit)."
+    },
+    {
+      "name": "hysteria",
+      "status": "templates",
+      "note": "Hysteria2 direct template (UDP) with a random salamander password. Saved without a local certificate, as requested; the panel may refuse TLS without one."
+    },
+    {
+      "name": "masque",
+      "status": "development",
+      "note": "Development in the panel docs (v3.9.1 and later). Default inbound to be added when the panel release is final."
+    },
+    {
+      "name": "mtproto",
+      "status": "pending",
+      "note": "Protocol constant in panel source (served by bundled mtg). Not built yet."
+    },
+    {
+      "name": "vless-reality",
+      "status": "templates",
+      "note": "VLESS Reality Vision (TCP, no certificate). Target from a default list or custom. Keys made with openssl. Source: panel docs reality.mdx (v3.10.0)."
+    },
+    {
+      "name": "vless-tls-vision",
+      "status": "templates",
+      "note": "VLESS TCP TLS Vision direct template (28). Certificate from the direct domain. No Nginx fallbacks. Flow xtls-rprx-vision is set on each client."
+    },
+    {
+      "name": "trojan-tls",
+      "status": "templates",
+      "note": "Trojan TCP TLS direct template (29). Certificate from the direct domain. No Nginx fallbacks."
+    }
+  ]
+}

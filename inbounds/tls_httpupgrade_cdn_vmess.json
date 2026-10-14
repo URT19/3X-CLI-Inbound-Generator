@@ -1,0 +1,134 @@
+{
+  "template_id": "tls_httpupgrade_cdn_vmess",
+  "number": 14,
+  "client_flow": "",
+  "deprecated": {
+    "reason": "httpupgrade transport is deprecated in Xray-core",
+    "replace": "XHTTP (H2 and H3)"
+  },
+  "name": "14. VMess HTTPUpgrade CDN",
+  "template_version": "1.1.0",
+  "source": {
+    "repo": "https://github.com/URT19/3x-ui-generator",
+    "commit": "46439c4",
+    "file": "templates.js",
+    "source_content_id": 18,
+    "source_port": 2096
+  },
+  "connection_mode": "cdn",
+  "protocol": "vmess",
+  "transport": "httpupgrade",
+  "security": "tls",
+  "port": {
+    "default": null,
+    "reserved": [
+      80,
+      443
+    ],
+    "note": "Port must be supplied when creating the inbound. The source default is not used."
+  },
+  "required_inputs": [
+    "CERT_CDN",
+    "KEY_CDN",
+    "PATH_UPGRADE",
+    "PORT",
+    "SUBDOMAIN_CDN",
+    "WHITELIST_IP"
+  ],
+  "placeholders": [
+    "CERT_CDN",
+    "KEY_CDN",
+    "PATH_UPGRADE",
+    "PORT",
+    "SUBDOMAIN_CDN",
+    "WHITELIST_IP"
+  ],
+  "naming": {
+    "remark_default": "14- tls httpupgrade CDN vmess",
+    "tag_pattern": "in-{PORT}-tcp"
+  },
+  "validation": {
+    "port_range": [
+      1,
+      65535
+    ],
+    "reserved_ports": [
+      80,
+      443
+    ],
+    "protocol_allowed": [
+      "amneziawg",
+      "hysteria",
+      "trojan",
+      "tuic",
+      "vless",
+      "vmess"
+    ]
+  },
+  "external_proxies": [
+    {
+      "remark": "imported 1",
+      "address": "{{WHITELIST_IP}}",
+      "port": 2096,
+      "security": "same",
+      "sni": "",
+      "alpn": [],
+      "sortOrder": 0
+    }
+  ],
+  "content": {
+    "remark": "14- tls httpupgrade CDN vmess",
+    "enable": true,
+    "expiryTime": 0,
+    "trafficReset": "never",
+    "listen": "",
+    "port": "{{PORT}}",
+    "protocol": "vmess",
+    "settings": {
+      "clients": []
+    },
+    "streamSettings": {
+      "network": "httpupgrade",
+      "httpupgradeSettings": {
+        "acceptProxyProtocol": false,
+        "path": "{{PATH_UPGRADE}}",
+        "host": "{{SUBDOMAIN_CDN}}",
+        "headers": {}
+      },
+      "security": "tls",
+      "tlsSettings": {
+        "serverName": "{{SUBDOMAIN_CDN}}",
+        "minVersion": "1.0",
+        "maxVersion": "1.3",
+        "cipherSuites": "",
+        "rejectUnknownSni": false,
+        "disableSystemRoot": false,
+        "enableSessionResumption": false,
+        "certificates": [
+          {
+            "certificateFile": "{{CERT_CDN}}",
+            "keyFile": "{{KEY_CDN}}",
+            "oneTimeLoading": false,
+            "usage": "encipherment",
+            "buildChain": false
+          }
+        ],
+        "alpn": [
+          "h2"
+        ],
+        "echServerKeys": "",
+        "settings": {
+          "fingerprint": "chrome",
+          "echConfigList": "",
+          "pinnedPeerCertSha256": []
+        }
+      }
+    },
+    "tag": "in-{{PORT}}-tcp",
+    "sniffing": {
+      "enabled": false
+    },
+    "nodeId": null,
+    "fallbackParent": null
+  }
+}

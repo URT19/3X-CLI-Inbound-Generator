@@ -1,0 +1,114 @@
+{
+  "template_id": "udp_amneziawg_direct",
+  "number": 24,
+  "client_flow": "",
+  "deprecated": null,
+  "name": "24. AmneziaWG Direct (UDP)",
+  "template_version": "1.1.0",
+  "source": {
+    "repo": "https://github.com/URT19/3x-ui-generator",
+    "commit": "46439c4",
+    "file": "templates.js",
+    "source_content_id": null,
+    "source_port": 13798
+  },
+  "connection_mode": "direct",
+  "protocol": "amneziawg",
+  "transport": "amneziawg",
+  "security": "none",
+  "port": {
+    "default": null,
+    "reserved": [
+      80,
+      443
+    ],
+    "note": "Port must be supplied when creating the inbound. The source default is not used."
+  },
+  "required_inputs": [
+    "AWG_HEADER_KEY",
+    "AWG_PRIVATE_KEY",
+    "AWG_PUBLIC_KEY",
+    "PORT"
+  ],
+  "placeholders": [
+    "AWG_HEADER_KEY",
+    "AWG_PRIVATE_KEY",
+    "AWG_PUBLIC_KEY",
+    "PORT"
+  ],
+  "naming": {
+    "remark_default": null,
+    "tag_pattern": "in-{PORT}-tcp"
+  },
+  "validation": {
+    "port_range": [
+      1,
+      65535
+    ],
+    "reserved_ports": [
+      80,
+      443
+    ],
+    "protocol_allowed": [
+      "amneziawg",
+      "hysteria",
+      "trojan",
+      "tuic",
+      "vless",
+      "vmess"
+    ]
+  },
+  "external_proxies": [],
+  "content": {
+    "listen": "",
+    "port": "{{PORT}}",
+    "protocol": "amneziawg",
+    "tag": "in-{{PORT}}-udp",
+    "settings": {
+      "server": {
+        "privateKey": "{{AWG_PRIVATE_KEY}}",
+        "publicKey": "{{AWG_PUBLIC_KEY}}",
+        "subnetIp": "10.8.1.0",
+        "subnetCidr": 24,
+        "primaryDns": "8.8.8.8",
+        "secondaryDns": "8.8.4.4",
+        "externalInterface": "",
+        "ipv6Enabled": false,
+        "ipv6Subnet": "",
+        "ipv6ExternalInterface": "",
+        "jc": 5,
+        "jmin": 43,
+        "jmax": 142,
+        "s1": 76,
+        "s2": 84,
+        "s3": 41,
+        "s4": 15,
+        "h1": "46060673",
+        "h2": "1030170436",
+        "h3": "1536548226",
+        "h4": "1683600279",
+        "i1": "<r 104>",
+        "i2": "",
+        "i3": "",
+        "i4": "",
+        "i5": "",
+        "headerProtectionKey": "{{AWG_HEADER_KEY}}",
+        "contentPaddingAddition": "11-46",
+        "rekeyAfterTime": "115-150",
+        "rekeyTimeout": "6-10",
+        "rejectAfterTime": "196-246",
+        "keepaliveTimeout": "9-15",
+        "maxHandshakeAttempts": "25-36",
+        "randomTrailers": true,
+        "disableCookies": true
+      },
+      "clients": []
+    },
+    "sniffing": {
+      "enabled": false
+    },
+    "nodeId": null,
+    "fallbackParent": null,
+    "enable": true
+  }
+}

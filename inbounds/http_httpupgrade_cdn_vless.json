@@ -1,0 +1,111 @@
+{
+  "template_id": "http_httpupgrade_cdn_vless",
+  "number": 16,
+  "client_flow": "",
+  "deprecated": {
+    "reason": "httpupgrade transport is deprecated in Xray-core",
+    "replace": "XHTTP (H2 and H3)"
+  },
+  "name": "16. VLESS HTTPUpgrade Plain CDN (No TLS)",
+  "template_version": "1.1.0",
+  "source": {
+    "repo": "https://github.com/URT19/3x-ui-generator",
+    "commit": "46439c4",
+    "file": "templates.js",
+    "source_content_id": 20,
+    "source_port": 8080
+  },
+  "connection_mode": "cdn",
+  "protocol": "vless",
+  "transport": "httpupgrade",
+  "security": "plain",
+  "port": {
+    "default": null,
+    "reserved": [
+      80,
+      443
+    ],
+    "note": "Port must be supplied when creating the inbound. The source default is not used."
+  },
+  "required_inputs": [
+    "PATH_UPGRADE",
+    "PORT",
+    "SUBDOMAIN_CDN",
+    "WHITELIST_IP"
+  ],
+  "placeholders": [
+    "PATH_UPGRADE",
+    "PORT",
+    "SUBDOMAIN_CDN",
+    "WHITELIST_IP"
+  ],
+  "naming": {
+    "remark_default": "16- http httpupgrade CDN vless",
+    "tag_pattern": "in-{PORT}-tcp"
+  },
+  "validation": {
+    "port_range": [
+      1,
+      65535
+    ],
+    "reserved_ports": [
+      80,
+      443
+    ],
+    "protocol_allowed": [
+      "amneziawg",
+      "hysteria",
+      "trojan",
+      "tuic",
+      "vless",
+      "vmess"
+    ]
+  },
+  "external_proxies": [
+    {
+      "remark": "imported 1",
+      "address": "{{WHITELIST_IP}}",
+      "port": 8080,
+      "security": "same",
+      "sni": "",
+      "alpn": [],
+      "sortOrder": 0
+    }
+  ],
+  "content": {
+    "remark": "16- http httpupgrade CDN vless",
+    "enable": true,
+    "expiryTime": 0,
+    "trafficReset": "never",
+    "listen": "",
+    "port": "{{PORT}}",
+    "protocol": "vless",
+    "settings": {
+      "clients": [],
+      "decryption": "none",
+      "encryption": "none"
+    },
+    "streamSettings": {
+      "network": "httpupgrade",
+      "httpupgradeSettings": {
+        "acceptProxyProtocol": false,
+        "path": "{{PATH_UPGRADE}}",
+        "host": "{{SUBDOMAIN_CDN}}",
+        "headers": {}
+      },
+      "security": "none"
+    },
+    "tag": "in-{{PORT}}-tcp",
+    "sniffing": {
+      "enabled": true,
+      "destOverride": [
+        "http",
+        "tls",
+        "quic",
+        "fakedns"
+      ]
+    },
+    "nodeId": null,
+    "fallbackParent": null
+  }
+}

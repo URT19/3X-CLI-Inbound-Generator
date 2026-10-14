@@ -1,0 +1,143 @@
+{
+  "template_id": "tls_xhttp_direct",
+  "number": 1,
+  "client_flow": "",
+  "deprecated": null,
+  "name": "1. VLESS xHTTP Direct",
+  "template_version": "1.1.0",
+  "source": {
+    "repo": "https://github.com/URT19/3x-ui-generator",
+    "commit": "46439c4",
+    "file": "templates.js",
+    "source_content_id": 1,
+    "source_port": 4430
+  },
+  "connection_mode": "direct",
+  "protocol": "vless",
+  "transport": "xhttp",
+  "security": "tls",
+  "port": {
+    "default": null,
+    "reserved": [
+      80,
+      443
+    ],
+    "note": "Port must be supplied when creating the inbound. The source default is not used."
+  },
+  "required_inputs": [
+    "CERT_DIRECT",
+    "KEY_DIRECT",
+    "PATH_XHTTP",
+    "PORT",
+    "SUBDOMAIN_DIRECT"
+  ],
+  "placeholders": [
+    "CERT_DIRECT",
+    "KEY_DIRECT",
+    "PATH_XHTTP",
+    "PORT",
+    "SUBDOMAIN_DIRECT"
+  ],
+  "naming": {
+    "remark_default": "01- tls xhttp direct",
+    "tag_pattern": "in-{PORT}-tcp"
+  },
+  "validation": {
+    "port_range": [
+      1,
+      65535
+    ],
+    "reserved_ports": [
+      80,
+      443
+    ],
+    "protocol_allowed": [
+      "amneziawg",
+      "hysteria",
+      "trojan",
+      "tuic",
+      "vless",
+      "vmess"
+    ]
+  },
+  "external_proxies": [],
+  "content": {
+    "remark": "01- tls xhttp direct",
+    "enable": true,
+    "expiryTime": 0,
+    "trafficReset": "never",
+    "listen": "",
+    "port": "{{PORT}}",
+    "protocol": "vless",
+    "settings": {
+      "clients": [],
+      "decryption": "none",
+      "encryption": "none"
+    },
+    "streamSettings": {
+      "network": "xhttp",
+      "xhttpSettings": {
+        "path": "{{PATH_XHTTP}}",
+        "host": "{{SUBDOMAIN_DIRECT}}",
+        "mode": "auto",
+        "xPaddingBytes": "100-1000",
+        "xPaddingObfsMode": false,
+        "xPaddingKey": "",
+        "xPaddingHeader": "",
+        "xPaddingPlacement": "",
+        "xPaddingMethod": "",
+        "sessionPlacement": "",
+        "sessionKey": "",
+        "seqPlacement": "",
+        "seqKey": "",
+        "uplinkDataPlacement": "",
+        "uplinkDataKey": "",
+        "scMaxEachPostBytes": "1000000",
+        "noSSEHeader": false,
+        "scMaxBufferedPosts": 30,
+        "scStreamUpServerSecs": "20-80",
+        "serverMaxHeaderBytes": 0,
+        "uplinkHTTPMethod": "",
+        "headers": {},
+        "scMinPostsIntervalMs": "30",
+        "uplinkChunkSize": 0,
+        "noGRPCHeader": false,
+        "enableXmux": false
+      },
+      "security": "tls",
+      "tlsSettings": {
+        "serverName": "{{SUBDOMAIN_DIRECT}}",
+        "minVersion": "1.2",
+        "maxVersion": "1.3",
+        "cipherSuites": "",
+        "rejectUnknownSni": false,
+        "disableSystemRoot": false,
+        "enableSessionResumption": false,
+        "certificates": [
+          {
+            "certificateFile": "{{CERT_DIRECT}}",
+            "keyFile": "{{KEY_DIRECT}}",
+            "oneTimeLoading": false,
+            "usage": "encipherment",
+            "buildChain": false
+          }
+        ],
+        "alpn": [
+          "h2"
+        ],
+        "echServerKeys": "",
+        "settings": {
+          "fingerprint": "chrome",
+          "echConfigList": "",
+          "pinnedPeerCertSha256": []
+        }
+      }
+    },
+    "tag": "in-{{PORT}}-tcp",
+    "sniffing": {
+      "enabled": false
+    },
+    "nodeId": null,
+    "fallbackParent": null
+  }
+}

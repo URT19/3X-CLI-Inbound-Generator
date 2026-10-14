@@ -1,0 +1,499 @@
+[
+  {
+    "id": "tls_hysteria_direct",
+    "name": "22. Hysteria2 Direct (UDP)",
+    "content": {
+      "listen": "",
+      "port": 35341,
+      "protocol": "hysteria",
+      "tag": "in-35341-udp",
+      "settings": {
+        "version": 2
+      },
+      "sniffing": {
+        "enabled": false
+      },
+      "streamSettings": {
+        "network": "hysteria",
+        "hysteriaSettings": {
+          "version": 2,
+          "udpIdleTimeout": 60
+        },
+        "security": "tls",
+        "tlsSettings": {
+          "serverName": "{{SUBDOMAIN_DIRECT}}",
+          "minVersion": "1.2",
+          "maxVersion": "1.3",
+          "cipherSuites": "",
+          "rejectUnknownSni": false,
+          "disableSystemRoot": false,
+          "enableSessionResumption": false,
+          "certificates": [
+            {
+              "ocspStapling": 0,
+              "oneTimeLoading": false,
+              "usage": "encipherment",
+              "buildChain": false,
+              "certificateFile": "{{CERT_DIRECT}}",
+              "keyFile": "{{KEY_DIRECT}}",
+              "useFile": true
+            }
+          ],
+          "alpn": [
+            "h3"
+          ],
+          "echServerKeys": "",
+          "settings": {
+            "fingerprint": "chrome",
+            "echConfigList": "",
+            "pinnedPeerCertSha256": [],
+            "verifyPeerCertByName": ""
+          }
+        },
+        "finalmask": {
+          "udp": [
+            {
+              "type": "salamander",
+              "settings": {
+                "password": "{{HY_PASSWORD}}"
+              }
+            }
+          ]
+        }
+      },
+      "clientStats": [],
+      "nodeId": null,
+      "fallbackParent": null
+    }
+  },
+  {
+    "id": "tls_tuic_direct",
+    "name": "23. TUIC v5 Direct (UDP)",
+    "content": {
+      "listen": "",
+      "port": 35342,
+      "protocol": "tuic",
+      "tag": "in-35342-udp",
+      "settings": {
+        "certificate": "{{CERT_DIRECT}}",
+        "private_key": "{{KEY_DIRECT}}",
+        "congestion_control": "bbr",
+        "alpn": [
+          "h3"
+        ],
+        "udp_relay_mode": "native",
+        "zero_rtt_handshake": true,
+        "max_idle_time": 15,
+        "authentication_timeout": 3,
+        "max_udp_relay_packet_size": 1500,
+        "sni": "{{SUBDOMAIN_DIRECT}}",
+        "clients": []
+      },
+      "sniffing": {
+        "enabled": false
+      },
+      "clientStats": [],
+      "nodeId": null,
+      "fallbackParent": null
+    }
+  },
+  {
+    "id": "udp_amneziawg_direct",
+    "name": "24. AmneziaWG Direct (UDP)",
+    "content": {
+      "listen": "",
+      "port": 13798,
+      "protocol": "amneziawg",
+      "tag": "in-13798-udp",
+      "settings": {
+        "server": {
+          "privateKey": "{{AWG_PRIVATE_KEY}}",
+          "publicKey": "{{AWG_PUBLIC_KEY}}",
+          "subnetIp": "10.8.1.0",
+          "subnetCidr": 24,
+          "primaryDns": "8.8.8.8",
+          "secondaryDns": "8.8.4.4",
+          "externalInterface": "",
+          "ipv6Enabled": false,
+          "ipv6Subnet": "",
+          "ipv6ExternalInterface": "",
+          "jc": 5,
+          "jmin": 43,
+          "jmax": 142,
+          "s1": 76,
+          "s2": 84,
+          "s3": 41,
+          "s4": 15,
+          "h1": "46060673",
+          "h2": "1030170436",
+          "h3": "1536548226",
+          "h4": "1683600279",
+          "i1": "<r 104>",
+          "i2": "",
+          "i3": "",
+          "i4": "",
+          "i5": "",
+          "headerProtectionKey": "{{AWG_HEADER_KEY}}",
+          "contentPaddingAddition": "11-46",
+          "rekeyAfterTime": "115-150",
+          "rekeyTimeout": "6-10",
+          "rejectAfterTime": "196-246",
+          "keepaliveTimeout": "9-15",
+          "maxHandshakeAttempts": "25-36",
+          "randomTrailers": true,
+          "disableCookies": true
+        },
+        "clients": []
+      },
+      "sniffing": {
+        "enabled": false
+      },
+      "clientStats": [],
+      "nodeId": null,
+      "fallbackParent": null
+    }
+  },
+  {
+    "id": "tcp_reality_vision_direct",
+    "name": "25. VLESS Reality Vision (TCP)",
+    "content": {
+      "listen": "",
+      "port": 443,
+      "protocol": "vless",
+      "tag": "in-443-tcp",
+      "settings": {
+        "clients": [],
+        "decryption": "none",
+        "fallbacks": []
+      },
+      "sniffing": {
+        "enabled": true,
+        "destOverride": [
+          "http",
+          "tls",
+          "quic"
+        ],
+        "routeOnly": false
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "security": "reality",
+        "tcpSettings": {
+          "header": {
+            "type": "none"
+          }
+        },
+        "realitySettings": {
+          "show": false,
+          "dest": "{{REALITY_DEST}}",
+          "xver": 0,
+          "serverNames": [
+            "{{REALITY_SNI}}"
+          ],
+          "privateKey": "{{REALITY_PRIVATE_KEY}}",
+          "shortIds": [
+            "{{REALITY_SHORT_ID}}"
+          ],
+          "fingerprint": "{{FINGERPRINT}}",
+          "spiderX": "/",
+          "settings": {
+            "publicKey": "{{REALITY_PUBLIC_KEY}}",
+            "fingerprint": "{{FINGERPRINT}}",
+            "serverName": "{{REALITY_SNI}}",
+            "spiderX": "/"
+          }
+        }
+      },
+      "clientStats": [],
+      "nodeId": null,
+      "fallbackParent": null
+    },
+    "client_flow": "xtls-rprx-vision"
+  },
+  {
+    "id": "grpc_reality_direct",
+    "name": "26. VLESS gRPC REALITY",
+    "content": {
+      "listen": "",
+      "port": 443,
+      "protocol": "vless",
+      "tag": "in-443-tcp",
+      "settings": {
+        "clients": [],
+        "decryption": "none",
+        "fallbacks": []
+      },
+      "sniffing": {
+        "enabled": true,
+        "destOverride": [
+          "http",
+          "tls",
+          "quic"
+        ],
+        "routeOnly": false
+      },
+      "streamSettings": {
+        "network": "grpc",
+        "security": "reality",
+        "grpcSettings": {
+          "serviceName": "{{PATH_GRPC}}",
+          "multiMode": false
+        },
+        "realitySettings": {
+          "show": false,
+          "dest": "{{REALITY_DEST}}",
+          "xver": 0,
+          "serverNames": [
+            "{{REALITY_SNI}}"
+          ],
+          "privateKey": "{{REALITY_PRIVATE_KEY}}",
+          "shortIds": [
+            "{{REALITY_SHORT_ID}}"
+          ],
+          "fingerprint": "{{FINGERPRINT}}",
+          "spiderX": "/",
+          "settings": {
+            "publicKey": "{{REALITY_PUBLIC_KEY}}",
+            "fingerprint": "{{FINGERPRINT}}",
+            "serverName": "{{REALITY_SNI}}",
+            "spiderX": "/"
+          }
+        }
+      },
+      "clientStats": [],
+      "nodeId": null,
+      "fallbackParent": null
+    }
+  },
+  {
+    "id": "xhttp_reality_direct",
+    "name": "27. VLESS XHTTP REALITY",
+    "content": {
+      "listen": "",
+      "port": 443,
+      "protocol": "vless",
+      "tag": "in-443-tcp",
+      "settings": {
+        "clients": [],
+        "decryption": "none",
+        "fallbacks": []
+      },
+      "sniffing": {
+        "enabled": true,
+        "destOverride": [
+          "http",
+          "tls",
+          "quic"
+        ],
+        "routeOnly": false
+      },
+      "streamSettings": {
+        "network": "xhttp",
+        "security": "reality",
+        "xhttpSettings": {
+          "path": "{{PATH_XHTTP}}",
+          "mode": "auto",
+          "host": ""
+        },
+        "realitySettings": {
+          "show": false,
+          "dest": "{{REALITY_DEST}}",
+          "xver": 0,
+          "serverNames": [
+            "{{REALITY_SNI}}"
+          ],
+          "privateKey": "{{REALITY_PRIVATE_KEY}}",
+          "shortIds": [
+            "{{REALITY_SHORT_ID}}"
+          ],
+          "fingerprint": "{{FINGERPRINT}}",
+          "spiderX": "/",
+          "settings": {
+            "publicKey": "{{REALITY_PUBLIC_KEY}}",
+            "fingerprint": "{{FINGERPRINT}}",
+            "serverName": "{{REALITY_SNI}}",
+            "spiderX": "/"
+          }
+        }
+      },
+      "clientStats": [],
+      "nodeId": null,
+      "fallbackParent": null
+    }
+  },
+  {
+    "id": "tls_vless_vision_direct",
+    "name": "28. VLESS TCP TLS Vision Direct",
+    "content": {
+      "listen": "",
+      "port": 443,
+      "protocol": "vless",
+      "tag": "in-443-tcp",
+      "settings": {
+        "clients": [],
+        "decryption": "none",
+        "fallbacks": []
+      },
+      "sniffing": {
+        "enabled": true,
+        "destOverride": [
+          "http",
+          "tls",
+          "quic"
+        ],
+        "routeOnly": false
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "security": "tls",
+        "tlsSettings": {
+          "serverName": "{{SUBDOMAIN_DIRECT}}",
+          "minVersion": "1.2",
+          "rejectUnknownSni": true,
+          "certificates": [
+            {
+              "ocspStapling": 3600,
+              "oneTimeLoading": false,
+              "usage": "encipherment",
+              "buildChain": false,
+              "certificateFile": "{{CERT_DIRECT}}",
+              "keyFile": "{{KEY_DIRECT}}",
+              "useFile": true
+            }
+          ],
+          "alpn": [
+            "h2",
+            "http/1.1"
+          ],
+          "settings": {
+            "fingerprint": "{{FINGERPRINT}}"
+          }
+        },
+        "tcpSettings": {
+          "header": {
+            "type": "none"
+          }
+        }
+      },
+      "clientStats": [],
+      "nodeId": null,
+      "fallbackParent": null
+    },
+    "client_flow": "xtls-rprx-vision"
+  },
+  {
+    "id": "tls_trojan_tcp_direct",
+    "name": "29. Trojan TCP TLS Direct",
+    "content": {
+      "listen": "",
+      "port": 443,
+      "protocol": "trojan",
+      "tag": "in-443-tcp",
+      "settings": {
+        "clients": [],
+        "fallbacks": []
+      },
+      "sniffing": {
+        "enabled": true,
+        "destOverride": [
+          "http",
+          "tls",
+          "quic"
+        ],
+        "routeOnly": false
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "security": "tls",
+        "tlsSettings": {
+          "serverName": "{{SUBDOMAIN_DIRECT}}",
+          "minVersion": "1.2",
+          "rejectUnknownSni": true,
+          "certificates": [
+            {
+              "ocspStapling": 3600,
+              "oneTimeLoading": false,
+              "usage": "encipherment",
+              "buildChain": false,
+              "certificateFile": "{{CERT_DIRECT}}",
+              "keyFile": "{{KEY_DIRECT}}",
+              "useFile": true
+            }
+          ],
+          "alpn": [
+            "h2",
+            "http/1.1"
+          ],
+          "settings": {
+            "fingerprint": "{{FINGERPRINT}}"
+          }
+        },
+        "tcpSettings": {
+          "header": {
+            "type": "none"
+          }
+        }
+      },
+      "clientStats": [],
+      "nodeId": null,
+      "fallbackParent": null
+    }
+  },
+  {
+    "id": "tcp_reality_plain_direct",
+    "name": "30. VLESS Reality TCP (no Vision flow)",
+    "client_flow": "",
+    "content": {
+      "listen": "",
+      "port": 443,
+      "protocol": "vless",
+      "tag": "in-443-tcp",
+      "settings": {
+        "clients": [],
+        "decryption": "none",
+        "fallbacks": []
+      },
+      "sniffing": {
+        "enabled": true,
+        "destOverride": [
+          "http",
+          "tls",
+          "quic"
+        ],
+        "routeOnly": false
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "security": "reality",
+        "tcpSettings": {
+          "header": {
+            "type": "none"
+          }
+        },
+        "realitySettings": {
+          "show": false,
+          "dest": "{{REALITY_DEST}}",
+          "xver": 0,
+          "serverNames": [
+            "{{REALITY_SNI}}"
+          ],
+          "privateKey": "{{REALITY_PRIVATE_KEY}}",
+          "shortIds": [
+            "{{REALITY_SHORT_ID}}"
+          ],
+          "fingerprint": "{{FINGERPRINT}}",
+          "spiderX": "/",
+          "settings": {
+            "publicKey": "{{REALITY_PUBLIC_KEY}}",
+            "fingerprint": "{{FINGERPRINT}}",
+            "serverName": "{{REALITY_SNI}}",
+            "spiderX": "/"
+          }
+        }
+      },
+      "clientStats": [],
+      "nodeId": null,
+      "fallbackParent": null
+    }
+  }
+]

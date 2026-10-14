@@ -1,0 +1,5 @@
+config/settings.json
+.settings-*.tmp
+state/local_inbounds/
+backups/
+exports/

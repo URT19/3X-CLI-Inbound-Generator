@@ -1,0 +1,155 @@
+{
+  "template_id": "tls_xhttp_cdn_vless",
+  "number": 12,
+  "client_flow": "",
+  "deprecated": null,
+  "name": "12. VLESS xHTTP CDN",
+  "template_version": "1.1.0",
+  "source": {
+    "repo": "https://github.com/URT19/3x-ui-generator",
+    "commit": "46439c4",
+    "file": "templates.js",
+    "source_content_id": 16,
+    "source_port": 443
+  },
+  "connection_mode": "cdn",
+  "protocol": "vless",
+  "transport": "xhttp",
+  "security": "tls",
+  "port": {
+    "default": null,
+    "reserved": [
+      80,
+      443
+    ],
+    "note": "Port must be supplied when creating the inbound. The source default is not used."
+  },
+  "required_inputs": [
+    "CERT_CDN",
+    "KEY_CDN",
+    "PATH_XHTTP",
+    "PORT",
+    "SUBDOMAIN_CDN",
+    "WHITELIST_IP"
+  ],
+  "placeholders": [
+    "CERT_CDN",
+    "KEY_CDN",
+    "PATH_XHTTP",
+    "PORT",
+    "SUBDOMAIN_CDN",
+    "WHITELIST_IP"
+  ],
+  "naming": {
+    "remark_default": "12- tls xhttp CDN vless",
+    "tag_pattern": "in-{PORT}-tcp"
+  },
+  "validation": {
+    "port_range": [
+      1,
+      65535
+    ],
+    "reserved_ports": [
+      80,
+      443
+    ],
+    "protocol_allowed": [
+      "amneziawg",
+      "hysteria",
+      "trojan",
+      "tuic",
+      "vless",
+      "vmess"
+    ]
+  },
+  "external_proxies": [
+    {
+      "remark": "imported 1",
+      "address": "{{WHITELIST_IP}}",
+      "port": 443,
+      "security": "same",
+      "sni": "",
+      "alpn": [],
+      "sortOrder": 0
+    }
+  ],
+  "content": {
+    "remark": "12- tls xhttp CDN vless",
+    "enable": true,
+    "expiryTime": 0,
+    "trafficReset": "never",
+    "listen": "",
+    "port": "{{PORT}}",
+    "protocol": "vless",
+    "settings": {
+      "clients": [],
+      "decryption": "none",
+      "encryption": "none"
+    },
+    "streamSettings": {
+      "network": "xhttp",
+      "xhttpSettings": {
+        "path": "{{PATH_XHTTP}}",
+        "host": "{{SUBDOMAIN_CDN}}",
+        "mode": "auto",
+        "xPaddingBytes": "10-500",
+        "xPaddingObfsMode": false,
+        "xPaddingKey": "",
+        "xPaddingHeader": "",
+        "xPaddingPlacement": "",
+        "xPaddingMethod": "",
+        "sessionPlacement": "",
+        "sessionKey": "",
+        "seqPlacement": "",
+        "seqKey": "",
+        "uplinkDataPlacement": "",
+        "uplinkDataKey": "",
+        "scMaxEachPostBytes": "1000000",
+        "noSSEHeader": false,
+        "scMaxBufferedPosts": 30,
+        "scStreamUpServerSecs": "20-80",
+        "serverMaxHeaderBytes": 0,
+        "uplinkHTTPMethod": "",
+        "headers": {},
+        "scMinPostsIntervalMs": "30",
+        "uplinkChunkSize": 0,
+        "noGRPCHeader": false,
+        "enableXmux": false
+      },
+      "security": "tls",
+      "tlsSettings": {
+        "serverName": "{{SUBDOMAIN_CDN}}",
+        "minVersion": "1.2",
+        "maxVersion": "1.3",
+        "cipherSuites": "",
+        "rejectUnknownSni": false,
+        "disableSystemRoot": false,
+        "enableSessionResumption": false,
+        "certificates": [
+          {
+            "certificateFile": "{{CERT_CDN}}",
+            "keyFile": "{{KEY_CDN}}",
+            "oneTimeLoading": false,
+            "usage": "encipherment",
+            "buildChain": false
+          }
+        ],
+        "alpn": [
+          "h2"
+        ],
+        "echServerKeys": "",
+        "settings": {
+          "fingerprint": "chrome",
+          "echConfigList": "",
+          "pinnedPeerCertSha256": []
+        }
+      }
+    },
+    "tag": "in-{{PORT}}-tcp",
+    "sniffing": {
+      "enabled": false
+    },
+    "nodeId": null,
+    "fallbackParent": null
+  }
+}

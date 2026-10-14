@@ -1,0 +1,119 @@
+{
+  "template_id": "tls_vless_vision_direct",
+  "number": 28,
+  "client_flow": "xtls-rprx-vision",
+  "deprecated": null,
+  "name": "28. VLESS TCP TLS Vision Direct",
+  "template_version": "1.1.0",
+  "source": {
+    "repo": "https://github.com/URT19/3x-ui-generator",
+    "commit": "46439c4",
+    "file": "templates.js",
+    "source_content_id": null,
+    "source_port": 443
+  },
+  "connection_mode": "direct",
+  "protocol": "vless",
+  "transport": "tcp",
+  "security": "tls",
+  "port": {
+    "default": null,
+    "reserved": [
+      80,
+      443
+    ],
+    "note": "Port must be supplied when creating the inbound. The source default is not used."
+  },
+  "required_inputs": [
+    "CERT_DIRECT",
+    "FINGERPRINT",
+    "KEY_DIRECT",
+    "PORT",
+    "SUBDOMAIN_DIRECT"
+  ],
+  "placeholders": [
+    "CERT_DIRECT",
+    "FINGERPRINT",
+    "KEY_DIRECT",
+    "PORT",
+    "SUBDOMAIN_DIRECT"
+  ],
+  "naming": {
+    "remark_default": null,
+    "tag_pattern": "in-{PORT}-tcp"
+  },
+  "validation": {
+    "port_range": [
+      1,
+      65535
+    ],
+    "reserved_ports": [
+      80,
+      443
+    ],
+    "protocol_allowed": [
+      "amneziawg",
+      "hysteria",
+      "trojan",
+      "tuic",
+      "vless",
+      "vmess"
+    ]
+  },
+  "external_proxies": [],
+  "content": {
+    "listen": "",
+    "port": "{{PORT}}",
+    "protocol": "vless",
+    "tag": "in-{{PORT}}-tcp",
+    "settings": {
+      "clients": [],
+      "decryption": "none",
+      "fallbacks": []
+    },
+    "sniffing": {
+      "enabled": true,
+      "destOverride": [
+        "http",
+        "tls",
+        "quic"
+      ],
+      "routeOnly": false
+    },
+    "streamSettings": {
+      "network": "tcp",
+      "security": "tls",
+      "tlsSettings": {
+        "serverName": "{{SUBDOMAIN_DIRECT}}",
+        "minVersion": "1.2",
+        "rejectUnknownSni": true,
+        "certificates": [
+          {
+            "ocspStapling": 3600,
+            "oneTimeLoading": false,
+            "usage": "encipherment",
+            "buildChain": false,
+            "certificateFile": "{{CERT_DIRECT}}",
+            "keyFile": "{{KEY_DIRECT}}",
+            "useFile": true
+          }
+        ],
+        "alpn": [
+          "h2",
+          "http/1.1"
+        ],
+        "settings": {
+          "fingerprint": "{{FINGERPRINT}}"
+        }
+      },
+      "tcpSettings": {
+        "header": {
+          "type": "none"
+        }
+      }
+    },
+    "nodeId": null,
+    "fallbackParent": null,
+    "enable": true
+  }
+}

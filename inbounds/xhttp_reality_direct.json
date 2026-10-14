@@ -1,0 +1,122 @@
+{
+  "template_id": "xhttp_reality_direct",
+  "number": 27,
+  "client_flow": "",
+  "deprecated": null,
+  "name": "27. VLESS XHTTP REALITY",
+  "template_version": "1.1.0",
+  "source": {
+    "repo": "https://github.com/URT19/3x-ui-generator",
+    "commit": "46439c4",
+    "file": "templates.js",
+    "source_content_id": null,
+    "source_port": 443
+  },
+  "connection_mode": "direct",
+  "protocol": "vless",
+  "transport": "xhttp",
+  "security": "reality",
+  "port": {
+    "default": null,
+    "reserved": [
+      80,
+      443
+    ],
+    "note": "Port must be supplied when creating the inbound. The source default is not used."
+  },
+  "required_inputs": [
+    "FINGERPRINT",
+    "PATH_XHTTP",
+    "PORT",
+    "REALITY_DEST",
+    "REALITY_PRIVATE_KEY",
+    "REALITY_PUBLIC_KEY",
+    "REALITY_SHORT_ID",
+    "REALITY_SNI"
+  ],
+  "placeholders": [
+    "FINGERPRINT",
+    "PATH_XHTTP",
+    "PORT",
+    "REALITY_DEST",
+    "REALITY_PRIVATE_KEY",
+    "REALITY_PUBLIC_KEY",
+    "REALITY_SHORT_ID",
+    "REALITY_SNI"
+  ],
+  "naming": {
+    "remark_default": null,
+    "tag_pattern": "in-{PORT}-tcp"
+  },
+  "validation": {
+    "port_range": [
+      1,
+      65535
+    ],
+    "reserved_ports": [
+      80,
+      443
+    ],
+    "protocol_allowed": [
+      "amneziawg",
+      "hysteria",
+      "trojan",
+      "tuic",
+      "vless",
+      "vmess"
+    ]
+  },
+  "external_proxies": [],
+  "content": {
+    "listen": "",
+    "port": "{{PORT}}",
+    "protocol": "vless",
+    "tag": "in-{{PORT}}-tcp",
+    "settings": {
+      "clients": [],
+      "decryption": "none",
+      "fallbacks": []
+    },
+    "sniffing": {
+      "enabled": true,
+      "destOverride": [
+        "http",
+        "tls",
+        "quic"
+      ],
+      "routeOnly": false
+    },
+    "streamSettings": {
+      "network": "xhttp",
+      "security": "reality",
+      "xhttpSettings": {
+        "path": "{{PATH_XHTTP}}",
+        "mode": "auto",
+        "host": ""
+      },
+      "realitySettings": {
+        "show": false,
+        "dest": "{{REALITY_DEST}}",
+        "xver": 0,
+        "serverNames": [
+          "{{REALITY_SNI}}"
+        ],
+        "privateKey": "{{REALITY_PRIVATE_KEY}}",
+        "shortIds": [
+          "{{REALITY_SHORT_ID}}"
+        ],
+        "fingerprint": "{{FINGERPRINT}}",
+        "spiderX": "/",
+        "settings": {
+          "publicKey": "{{REALITY_PUBLIC_KEY}}",
+          "fingerprint": "{{FINGERPRINT}}",
+          "serverName": "{{REALITY_SNI}}",
+          "spiderX": "/"
+        }
+      }
+    },
+    "nodeId": null,
+    "fallbackParent": null,
+    "enable": true
+  }
+}

@@ -1,0 +1,103 @@
+{
+  "template_id": "http_tcp_direct_vmess",
+  "number": 8,
+  "client_flow": "",
+  "deprecated": {
+    "reason": "vmess is deprecated in Xray-core",
+    "replace": "VLESS with encryption (ML-KEM); see the VLESS XHTTP templates and the encryption key step"
+  },
+  "name": "8. VMess TCP HTTP Obfuscation (No TLS)",
+  "template_version": "1.1.0",
+  "source": {
+    "repo": "https://github.com/URT19/3x-ui-generator",
+    "commit": "46439c4",
+    "file": "templates.js",
+    "source_content_id": 11,
+    "source_port": 803
+  },
+  "connection_mode": "direct",
+  "protocol": "vmess",
+  "transport": "tcp",
+  "security": "plain",
+  "port": {
+    "default": null,
+    "reserved": [
+      80,
+      443
+    ],
+    "note": "Port must be supplied when creating the inbound. The source default is not used."
+  },
+  "required_inputs": [
+    "PATH_TCP",
+    "PORT"
+  ],
+  "placeholders": [
+    "PATH_TCP",
+    "PORT"
+  ],
+  "naming": {
+    "remark_default": "08- http tcp direct vmess",
+    "tag_pattern": "in-{PORT}-tcp"
+  },
+  "validation": {
+    "port_range": [
+      1,
+      65535
+    ],
+    "reserved_ports": [
+      80,
+      443
+    ],
+    "protocol_allowed": [
+      "amneziawg",
+      "hysteria",
+      "trojan",
+      "tuic",
+      "vless",
+      "vmess"
+    ]
+  },
+  "external_proxies": [],
+  "content": {
+    "remark": "08- http tcp direct vmess",
+    "enable": true,
+    "expiryTime": 0,
+    "trafficReset": "never",
+    "listen": "",
+    "port": "{{PORT}}",
+    "protocol": "vmess",
+    "settings": {
+      "clients": []
+    },
+    "streamSettings": {
+      "network": "tcp",
+      "tcpSettings": {
+        "acceptProxyProtocol": false,
+        "header": {
+          "type": "http",
+          "request": {
+            "version": "1.1",
+            "method": "GET",
+            "path": [
+              "{{PATH_TCP}}"
+            ],
+            "headers": {}
+          },
+          "response": {
+            "version": "1.1",
+            "status": "200",
+            "reason": "OK",
+            "headers": {}
+          }
+        }
+      },
+      "security": "none"
+    },
+    "tag": "in-{{PORT}}-tcp",
+    "sniffing": {
+      "enabled": false
+    },
+    "nodeId": null,
+    "fallbackParent": null
+  }
+}

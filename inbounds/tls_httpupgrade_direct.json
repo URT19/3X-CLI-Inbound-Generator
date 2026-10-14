@@ -1,0 +1,122 @@
+{
+  "template_id": "tls_httpupgrade_direct",
+  "number": 4,
+  "client_flow": "",
+  "deprecated": {
+    "reason": "httpupgrade transport is deprecated in Xray-core",
+    "replace": "XHTTP (H2 and H3)"
+  },
+  "name": "4. VMess HTTPUpgrade Direct",
+  "template_version": "1.1.0",
+  "source": {
+    "repo": "https://github.com/URT19/3x-ui-generator",
+    "commit": "46439c4",
+    "file": "templates.js",
+    "source_content_id": 7,
+    "source_port": 4433
+  },
+  "connection_mode": "direct",
+  "protocol": "vmess",
+  "transport": "httpupgrade",
+  "security": "tls",
+  "port": {
+    "default": null,
+    "reserved": [
+      80,
+      443
+    ],
+    "note": "Port must be supplied when creating the inbound. The source default is not used."
+  },
+  "required_inputs": [
+    "CERT_DIRECT",
+    "KEY_DIRECT",
+    "PATH_UPGRADE",
+    "PORT",
+    "SUBDOMAIN_DIRECT"
+  ],
+  "placeholders": [
+    "CERT_DIRECT",
+    "KEY_DIRECT",
+    "PATH_UPGRADE",
+    "PORT",
+    "SUBDOMAIN_DIRECT"
+  ],
+  "naming": {
+    "remark_default": "04- tls httpupgrade direct",
+    "tag_pattern": "in-{PORT}-tcp"
+  },
+  "validation": {
+    "port_range": [
+      1,
+      65535
+    ],
+    "reserved_ports": [
+      80,
+      443
+    ],
+    "protocol_allowed": [
+      "amneziawg",
+      "hysteria",
+      "trojan",
+      "tuic",
+      "vless",
+      "vmess"
+    ]
+  },
+  "external_proxies": [],
+  "content": {
+    "remark": "04- tls httpupgrade direct",
+    "enable": true,
+    "expiryTime": 0,
+    "trafficReset": "never",
+    "listen": "",
+    "port": "{{PORT}}",
+    "protocol": "vmess",
+    "settings": {
+      "clients": []
+    },
+    "streamSettings": {
+      "network": "httpupgrade",
+      "httpupgradeSettings": {
+        "acceptProxyProtocol": false,
+        "path": "{{PATH_UPGRADE}}",
+        "host": "{{SUBDOMAIN_DIRECT}}",
+        "headers": {}
+      },
+      "security": "tls",
+      "tlsSettings": {
+        "serverName": "{{SUBDOMAIN_DIRECT}}",
+        "minVersion": "1.2",
+        "maxVersion": "1.3",
+        "cipherSuites": "",
+        "rejectUnknownSni": false,
+        "disableSystemRoot": false,
+        "enableSessionResumption": false,
+        "certificates": [
+          {
+            "certificateFile": "{{CERT_DIRECT}}",
+            "keyFile": "{{KEY_DIRECT}}",
+            "oneTimeLoading": false,
+            "usage": "encipherment",
+            "buildChain": false
+          }
+        ],
+        "alpn": [
+          "h2"
+        ],
+        "echServerKeys": "",
+        "settings": {
+          "fingerprint": "chrome",
+          "echConfigList": "",
+          "pinnedPeerCertSha256": []
+        }
+      }
+    },
+    "tag": "in-{{PORT}}-tcp",
+    "sniffing": {
+      "enabled": false
+    },
+    "nodeId": null,
+    "fallbackParent": null
+  }
+}
