@@ -1,8 +1,10 @@
-# 3x-ui Inbound Manager  v1.33.1
+# 3X CLI Inbound Generator  v1.33.1
 
 Interactive terminal manager for the Sanaei 3x-ui panel (v3.9.0 and later, checked against v3.10.0). It creates
 DIRECT, CDN (behind Cloudflare), relay, fake-site and fallback inbounds from JSON templates, checks and requests
 SSL certificates, and exports an inventory. Every change to the panel is previewed and confirmed first.
+
+Repository: https://github.com/URT19/3X-CLI-Inbound-Generator/
 
 ## Requirements
 
@@ -12,26 +14,46 @@ SSL certificates, and exports an inventory. Every change to the panel is preview
 - Optional: `curl`, `acme.sh` (certificate issuing)
 - A 3x-ui admin API token
 
-## Install and test
+    sudo apt install -y python3 openssl curl unzip
 
-    git clone <your repository url>
-    cd xui_manager
+## Install
+
+Download the release and run it:
+
+    wget https://github.com/URT19/3X-CLI-Inbound-Generator/releases/download/v1.33.0/3X-CLI-Inbound-Generator-1.33.0.zip
+    unzip 3X-CLI-Inbound-Generator-1.33.0.zip
+    cd <the extracted folder>
     python3 main.py
+
+Or clone the repository:
+
+    git clone https://github.com/URT19/3X-CLI-Inbound-Generator.git
+    cd 3X-CLI-Inbound-Generator
+    python3 main.py
+
+## Update
+
+Download the new release into a new folder and copy your `config/settings.json` (and `state/` if you want to keep
+the local records) into it. Do not unzip a new release over an old folder: unzip never removes files, so templates
+that were deleted or renamed in the new release stay behind in `inbounds/` and show up in the menus. If you did
+unzip over an old folder, delete `inbounds/` and unzip again.
+
+## Tests
+
     python3 -m unittest discover -s tests -t .      # 330 tests, no panel needed
     pip install pyyaml                              # optional, only enables the YAML export tests
 
 ## Important notes
 
 - Not affiliated with 3x-ui. Use at your own risk: test on a panel you can restore first (menu 10 makes a backup).
-- Your API token is stored in plain text in `config/settings.json` (mode 0600). That file, `state/`, `exports/`
-  and `backups/` are listed in `.gitignore`. Never commit or share them.
+- Your API token is stored in plain text in `config/settings.json` (mode 0600). That file, `state/local_inbounds/`,
+  `exports/` and `backups/` are listed in `.gitignore`. Never commit or share them.
 - The Cloudflare port list in `config/cloudflare_ports.json` can go out of date. Check it against Cloudflare's docs.
 
 ## Credits
 
-Panel: https://github.com/MHSanaei/3x-ui. The default inbound templates were derived from
-https://github.com/URT19/3x-ui-generator (see "Inbound library"). That repository showed no license when this
-project was prepared; see the note under "Inbound library" before redistributing.
+Panel: https://github.com/MHSanaei/3x-ui. The default inbound templates were extracted from the author's earlier
+project https://github.com/URT19/3x-ui-generator (commit 46439c4, file `templates.js`).
 
 ## Run
 
@@ -236,12 +258,11 @@ After a verified creation, the values used are saved in `state/local_inbounds/di
 
 ## Inbound library
 
-`inbounds/` holds 31 default templates, mostly derived from
-https://github.com/URT19/3x-ui-generator (commit 46439c4, file templates.js); the CDN set is generated from the TLS
+`inbounds/` holds 31 default templates, mostly extracted from
+https://github.com/URT19/3x-ui-generator (commit 46439c4, file templates.js). The CDN set is generated from the TLS
 direct templates by `tools/build_cdn_templates.py`. Templates are plain JSON: edit or add files in `inbounds/`.
-`tools/build_templates.py` regenerates the non-CDN templates from `tools/source_templates.json`, which is the
-extracted upstream `templates.js` (made with `tools/extract_templates.js`). That extract is not included in the
-public release because the upstream repository has no license; extract it yourself if you need to rebuild.
+`tools/build_templates.py` regenerates the non-CDN templates from `tools/source_templates.json` (the extracted
+`templates.js`, made with `tools/extract_templates.js`).
 
 Templates have no fixed port. The port is entered when the inbound is created.
 Ports 80 and 443 are refused. The source template 12 default (443) is not used.
