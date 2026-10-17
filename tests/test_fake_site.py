@@ -40,7 +40,7 @@ class FakeSiteTests(unittest.TestCase):
         existing = [{"id": 1, "masterId": 5, "childId": 11, "name": "trojan", "alpn": "h2",
                      "path": "/tr", "dest": "", "xver": 1, "sortOrder": 0}]
         panel = self.make_panel(existing)
-        self.run_menu(["6", "5", "127.0.0.1:8080", "", "0"], panel)
+        self.run_menu(["4", "3", "5", "127.0.0.1:8080", "", "0", "0"], panel)
         sent = panel.writes[-1][1]["fallbacks"]
         self.assertEqual(len(sent), 2)
         self.assertEqual(sent[0]["childId"], 11)           # existing child rule kept
@@ -53,30 +53,30 @@ class FakeSiteTests(unittest.TestCase):
         existing = [{"id": 1, "masterId": 5, "childId": 0, "name": "fake-site", "dest": "9000",
                      "alpn": "", "path": "", "xver": 0, "sortOrder": 0}]
         panel = self.make_panel(existing)
-        self.run_menu(["6", "5", "8080", "", "0"], panel)
+        self.run_menu(["4", "3", "5", "8080", "", "0", "0"], panel)
         sent = panel.writes[-1][1]["fallbacks"]
         self.assertEqual([r["dest"] for r in sent], ["8080"])
 
     def test_dry_run_path_is_not_taken_without_confirm(self):
         panel = self.make_panel()
-        out = self.run_menu(["6", "5", "8080", "no", "0"], panel)
+        out = self.run_menu(["4", "3", "5", "8080", "no", "0", "0"], panel)
         self.assertIn("Cancelled", out)
         self.assertEqual(panel.writes, [])
 
     def test_non_eligible_master_refused(self):
         panel = self.make_panel()
-        out = self.run_menu(["6", "7", "0"], panel)
+        out = self.run_menu(["4", "3", "7", "0", "0"], panel)
         self.assertIn("Choose one of the listed", out)
         self.assertEqual(panel.writes, [])
 
     def test_no_master_message(self):
         panel = _FP([WS])
-        out = self.run_menu(["6", "0"], panel)
+        out = self.run_menu(["4", "3", "0", "0"], panel)
         self.assertIn("No VLESS or Trojan inbound", out)
 
     def test_bad_address_refused_before_sending(self):
         panel = self.make_panel()
-        out = self.run_menu(["6", "5", "443", "0"], panel)
+        out = self.run_menu(["4", "3", "5", "443", "0", "0"], panel)
         self.assertIn("cannot be used for a fake site", out)
         self.assertEqual(panel.writes, [])
 

@@ -1,0 +1,121 @@
+{
+  "template_id": "tls_grpc_cdn_vless",
+  "number": 13,
+  "client_flow": "",
+  "deprecated": {
+    "reason": "grpc transport is deprecated in Xray-core",
+    "replace": "XHTTP stream-up (H2)"
+  },
+  "name": "13. VLESS gRPC TLS CDN",
+  "template_version": "1.2.0",
+  "source": {
+    "repo": "https://github.com/URT19/3x-ui-generator",
+    "commit": "46439c4",
+    "derived_from": "tls_vless_grpc_direct"
+  },
+  "connection_mode": "cdn",
+  "protocol": "vless",
+  "transport": "grpc",
+  "security": "tls",
+  "fixed_port": 2087,
+  "origin_port": false,
+  "port": {
+    "default": null,
+    "reserved": [
+      80,
+      443
+    ],
+    "note": "Port is fixed by fixed_port. It is a Cloudflare HTTPS port unless origin_port is true."
+  },
+  "required_inputs": [
+    "CERT_CDN",
+    "FINGERPRINT",
+    "KEY_CDN",
+    "PATH_GRPC",
+    "PORT",
+    "SUBDOMAIN_CDN"
+  ],
+  "placeholders": [
+    "CERT_CDN",
+    "FINGERPRINT",
+    "KEY_CDN",
+    "PATH_GRPC",
+    "PORT",
+    "SUBDOMAIN_CDN"
+  ],
+  "naming": {
+    "remark_default": "13. VLESS gRPC TLS CDN",
+    "tag_pattern": "in-{PORT}-tcp"
+  },
+  "validation": {
+    "port_range": [
+      1,
+      65535
+    ],
+    "reserved_ports": [
+      80,
+      443
+    ],
+    "protocol_allowed": [
+      "vless",
+      "vmess"
+    ]
+  },
+  "external_proxies": [],
+  "content": {
+    "listen": "",
+    "port": "{{PORT}}",
+    "protocol": "vless",
+    "tag": "in-{{PORT}}-tcp",
+    "settings": {
+      "clients": [],
+      "decryption": "none",
+      "fallbacks": []
+    },
+    "sniffing": {
+      "enabled": true,
+      "destOverride": [
+        "http",
+        "tls",
+        "quic"
+      ],
+      "routeOnly": false
+    },
+    "streamSettings": {
+      "network": "grpc",
+      "security": "tls",
+      "tlsSettings": {
+        "serverName": "{{SUBDOMAIN_CDN}}",
+        "minVersion": "1.2",
+        "rejectUnknownSni": false,
+        "certificates": [
+          {
+            "ocspStapling": 3600,
+            "oneTimeLoading": false,
+            "usage": "encipherment",
+            "buildChain": false,
+            "certificateFile": "{{CERT_CDN}}",
+            "keyFile": "{{KEY_CDN}}",
+            "useFile": true
+          }
+        ],
+        "alpn": [
+          "h2"
+        ],
+        "settings": {
+          "fingerprint": "{{FINGERPRINT}}",
+          "echConfigList": ""
+        },
+        "cipherSuites": "TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA:TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA:TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA:TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA:TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256:TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384:TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256:TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384:TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256:TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256"
+      },
+      "grpcSettings": {
+        "serviceName": "{{PATH_GRPC}}",
+        "multiMode": false
+      }
+    },
+    "nodeId": null,
+    "fallbackParent": null,
+    "enable": true,
+    "remark": "13. VLESS gRPC TLS CDN"
+  }
+}

@@ -1,7 +1,8 @@
 """Check prerequisites on Ubuntu and plan installs. Installing needs explicit confirmation.
 
 Required: python3 (3.10 or newer) and openssl.
-Optional: acme.sh (needed for SSL issuance) and curl.
+Optional: curl (downloads), acme.sh (SSL issuance, installed by hand), haproxy and nginx
+(proxy aggregation on one public port, menu 11).
 acme.sh is not installed here. Its installer is a remote script, so it stays a manual step.
 """
 
@@ -11,7 +12,7 @@ import sys
 from dataclasses import dataclass
 from typing import Callable, List, Optional, Tuple
 
-APT_PACKAGES = {"openssl": "openssl", "curl": "curl"}
+APT_PACKAGES = {"openssl": "openssl", "curl": "curl", "haproxy": "haproxy", "nginx": "nginx"}
 
 
 @dataclass
@@ -45,10 +46,17 @@ def check_prerequisites(
              "found" if which("openssl") else "missing (apt package: openssl)"),
         Item("curl", False, which("curl") is not None,
              "found" if which("curl") else "missing (apt package: curl)"),
+        Item("haproxy", False, which("haproxy") is not None,
+             "found" if which("haproxy") else "missing (apt package: haproxy; needed for menu 11)"),
+        Item("nginx", False, which("nginx") is not None,
+             "found" if which("nginx") else "missing (apt package: nginx; needed for menu 11)"),
         Item("acme.sh", False, os.path.isfile(acme_bin),
              acme_bin if os.path.isfile(acme_bin) else "missing (install manually; needed for SSL issuance)"),
     ]
     return items
+
+
+INSTALLABLE = tuple(APT_PACKAGES)
 
 
 def install_plan(items: List[Item], apt_available: bool) -> Optional[List[str]]:

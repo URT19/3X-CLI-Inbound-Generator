@@ -1,0 +1,122 @@
+{
+  "template_id": "tls_ws_cdn_vmess",
+  "number": 14,
+  "client_flow": "",
+  "deprecated": {
+    "reason": "ws transport is deprecated in Xray-core",
+    "replace": "XHTTP (H2 and H3); the XHTTP templates use the same connection mode"
+  },
+  "name": "14. VMess WS TLS CDN",
+  "template_version": "1.2.0",
+  "source": {
+    "repo": "https://github.com/URT19/3x-ui-generator",
+    "commit": "46439c4",
+    "derived_from": "tls_vmess_ws_direct"
+  },
+  "connection_mode": "cdn",
+  "protocol": "vmess",
+  "transport": "ws",
+  "security": "tls",
+  "fixed_port": 2096,
+  "origin_port": false,
+  "port": {
+    "default": null,
+    "reserved": [
+      80,
+      443
+    ],
+    "note": "Port is fixed by fixed_port. It is a Cloudflare HTTPS port unless origin_port is true."
+  },
+  "required_inputs": [
+    "CERT_CDN",
+    "FINGERPRINT",
+    "KEY_CDN",
+    "PATH_WS",
+    "PORT",
+    "SUBDOMAIN_CDN"
+  ],
+  "placeholders": [
+    "CERT_CDN",
+    "FINGERPRINT",
+    "KEY_CDN",
+    "PATH_WS",
+    "PORT",
+    "SUBDOMAIN_CDN"
+  ],
+  "naming": {
+    "remark_default": "14. VMess WS TLS CDN",
+    "tag_pattern": "in-{PORT}-tcp"
+  },
+  "validation": {
+    "port_range": [
+      1,
+      65535
+    ],
+    "reserved_ports": [
+      80,
+      443
+    ],
+    "protocol_allowed": [
+      "vless",
+      "vmess"
+    ]
+  },
+  "external_proxies": [],
+  "content": {
+    "listen": "",
+    "port": "{{PORT}}",
+    "protocol": "vmess",
+    "tag": "in-{{PORT}}-tcp",
+    "settings": {
+      "clients": []
+    },
+    "sniffing": {
+      "enabled": true,
+      "destOverride": [
+        "http",
+        "tls",
+        "quic"
+      ],
+      "routeOnly": false
+    },
+    "streamSettings": {
+      "network": "ws",
+      "security": "tls",
+      "tlsSettings": {
+        "serverName": "{{SUBDOMAIN_CDN}}",
+        "minVersion": "1.2",
+        "rejectUnknownSni": false,
+        "certificates": [
+          {
+            "ocspStapling": 3600,
+            "oneTimeLoading": false,
+            "usage": "encipherment",
+            "buildChain": false,
+            "certificateFile": "{{CERT_CDN}}",
+            "keyFile": "{{KEY_CDN}}",
+            "useFile": true
+          }
+        ],
+        "alpn": [
+          "http/1.1"
+        ],
+        "settings": {
+          "fingerprint": "{{FINGERPRINT}}",
+          "echConfigList": ""
+        },
+        "cipherSuites": "TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA:TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA:TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA:TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA:TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256:TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384:TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256:TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384:TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256:TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256"
+      },
+      "wsSettings": {
+        "acceptProxyProtocol": false,
+        "path": "{{PATH_WS}}",
+        "host": "{{SUBDOMAIN_CDN}}",
+        "headers": {},
+        "heartbeatPeriod": 30
+      }
+    },
+    "nodeId": null,
+    "fallbackParent": null,
+    "enable": true,
+    "remark": "14. VMess WS TLS CDN"
+  }
+}

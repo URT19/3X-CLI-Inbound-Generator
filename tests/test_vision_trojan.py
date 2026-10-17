@@ -27,8 +27,8 @@ class VisionAndTrojanTests(unittest.TestCase):
         self.cert_root = os.path.join(self.dir, "cert")
         make_cert(os.path.join(self.cert_root, DOMAIN), DOMAIN, days=90)
         self.lib = load_library(os.path.join(ROOT, "inbounds"))
-        self.net = NetworkSettings(direct_domain=DOMAIN, port_mode="random",
-                                   random_port_low=41000, random_port_high=41010)
+        self.net = NetworkSettings(direct_domain=DOMAIN, direct_domain2=DOMAIN, port_mode="random",
+                                   random_port_low=41000, random_port_high=43000)
         self.paths = generate_all()
 
     def tearDown(self):
@@ -68,7 +68,7 @@ class VisionAndTrojanTests(unittest.TestCase):
                              key=lambda t: (t.number, t.template_id))
             idx = next(i for i, t in enumerate(ordered, 1) if t.template_id == "tls_trojan_tcp_direct")
             panel = FakePanel()
-            inputs = iter(["4", "1", str(idx), CONFIRM_WORD, "0"])
+            inputs = iter(["4", "1", "1", str(idx), CONFIRM_WORD, "0", "0"])
             Menu(PanelClient("127.0.0.1:2053", token="T", transport=panel),
                  input_fn=lambda p="": next(inputs), output_fn=lambda t: None,
                  library=self.lib, settings=settings, settings_path=os.path.join(d, "s.json"),

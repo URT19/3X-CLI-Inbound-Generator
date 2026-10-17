@@ -41,7 +41,7 @@ class Env:
             port_mode="fixed" if fixed_port else "random",
             fixed_port=fixed_port,
             random_port_low=20000,
-            random_port_high=20010,
+            random_port_high=22000,
         )
         self.settings = Settings(cert_root=self.cert_root, network=net,
                                  paths=generate_all() if paths else {}, fingerprint="chrome")
@@ -78,11 +78,11 @@ class TlsFlowTests(unittest.TestCase):
         panel = FakePanel()
         idx = self.env.index("tls_tcp_direct", "direct")
         # Only menu choices and confirmations are typed. No port, path, domain or name prompts.
-        script = ["4", "1", str(idx), CONFIRM_WORD, "0"]
+        script = ["4", "1", "1", str(idx), "y", CONFIRM_WORD, "0", "0"]
         _, text = self.env.run(script, panel)
         self.assertIn("Done and verified", text)
         payload = panel.inbounds[0]
-        self.assertTrue(20000 <= payload["port"] <= 20010)
+        self.assertTrue(20000 <= payload["port"] <= 22010)
         self.assertEqual(payload["remark"], "02-VMESS-TCP-DIRECT-TLS")
         self.assertEqual(payload["streamSettings"]["tlsSettings"]["serverName"], DIRECT)
         cert = payload["streamSettings"]["tlsSettings"]["certificates"][0]
@@ -94,21 +94,27 @@ class TlsFlowTests(unittest.TestCase):
 
     def test_cdn_tls_ws_uses_cdn_domain_path_and_certificates(self):
         panel = FakePanel()
-        idx = self.env.index("tls_ws_cdn", "cdn")
-        script = ["5", "2", str(idx), CONFIRM_WORD, CONFIRM_WORD, "0"]  # route, inbound, then hosts
+        idx = self.env.index("tls_ws_cdn_vmess", "cdn")
+        # generate, CDN, route (Cloudflare IP), ECH no, finalmask no, template, confirm
+        script = ["4", "2", "2", "n", "n", str(idx), CONFIRM_WORD, "0", "0"]
         _, text = self.env.run(script, panel)
         payload = panel.inbounds[0]
         ws = payload["streamSettings"]["wsSettings"]
-        self.assertEqual(ws["path"], self.env.settings.paths["cdn_ws"])
+        self.assertRegex(ws["path"], r"^/[A-Za-z0-9]{12}$")  # own path, not the shared default
+        self.assertEqual(load_records(self.env.state_dir, "cdn")[0]["path"], ws["path"])
         self.assertEqual(ws["host"], CDN)
         self.assertEqual(payload["streamSettings"]["tlsSettings"]["serverName"], CDN)
+        # one host named CDN holds the chosen address (route 2: a Cloudflare IP)
+        self.assertEqual(payload["port"], 2096)
+        self.assertEqual(payload["streamSettings"]["tlsSettings"]["alpn"], ["http/1.1"])
         self.assertEqual(len(panel.hosts), 1)
-        self.assertEqual(panel.hosts[0]["hosts"][0], "203.0.113.1")
+        self.assertEqual(panel.hosts[0]["remark"], "CDN")
+        self.assertEqual(panel.hosts[0]["hosts"], ["203.0.113.1"])
 
     def test_local_record_written_per_connection_type(self):
         panel = FakePanel()
         idx = self.env.index("tls_tcp_direct", "direct")
-        self.env.run(["4", "1", str(idx), CONFIRM_WORD, "0"], panel)
+        self.env.run(["4", "1", "1", str(idx), "y", CONFIRM_WORD, "0", "0"], panel)
         records = load_records(self.env.state_dir, "direct")
         self.assertEqual(len(records), 1)
         self.assertEqual(records[0]["domain"], DIRECT)
@@ -117,16 +123,16 @@ class TlsFlowTests(unittest.TestCase):
 
     def test_cdn_record_uses_cdn_domain_and_path(self):
         panel = FakePanel()
-        idx = self.env.index("tls_ws_cdn", "cdn")
-        self.env.run(["5", "2", str(idx), CONFIRM_WORD, CONFIRM_WORD, "0"], panel)
+        idx = self.env.index("tls_ws_cdn_vmess", "cdn")
+        self.env.run(["4", "2", "2", "n", "n", str(idx), CONFIRM_WORD, "0", "0"], panel)
         records = load_records(self.env.state_dir, "cdn")
         self.assertEqual(records[0]["domain"], CDN)
-        self.assertEqual(records[0]["path"], self.env.settings.paths["cdn_ws"])
+        self.assertRegex(records[0]["path"], r"^/[A-Za-z0-9]{12}$")
 
     def test_cancel_sends_nothing_and_writes_no_record(self):
         panel = FakePanel()
         idx = self.env.index("tls_tcp_direct", "direct")
-        self.env.run(["4", "1", str(idx), "no", "0"], panel)
+        self.env.run(["4", "1", "1", str(idx), "no", "0", "0"], panel)
         self.assertEqual(panel.writes, [])
         self.assertEqual(load_records(self.env.state_dir, "direct"), [])
 
@@ -134,7 +140,7 @@ class TlsFlowTests(unittest.TestCase):
         shutil.rmtree(os.path.join(self.env.cert_root, DIRECT))
         panel = FakePanel()
         idx = self.env.index("tls_tcp_direct", "direct")
-        _, text = self.env.run(["4", "1", str(idx), "0"], panel)
+        _, text = self.env.run(["4", "1", "1", str(idx), "y", "0", "0"], panel)
         self.assertIn("Certificate file not readable", text)
         self.assertEqual(panel.writes, [])
 
@@ -156,7 +162,7 @@ class TlsFlowTests(unittest.TestCase):
         saved = menu_module.resolve_values
         menu_module.resolve_values = fake
         try:
-            _, text = menu_env.run(["4", "1", str(idx), "0"], panel)
+            _, text = menu_env.run(["4", "1", "1", str(idx), "y", "0", "0"], panel)
         finally:
             menu_module.resolve_values = saved
         self.assertIn("SSL for", text)
@@ -172,19 +178,19 @@ class MissingSettingsTests(unittest.TestCase):
 
     def test_all_missing_values_listed_and_nothing_sent(self):
         panel = FakePanel()
-        idx = self.env.index("tls_ws_cdn", "cdn")
-        _, text = self.env.run(["5", "2", str(idx), "0"], panel)
+        idx = self.env.index("tls_ws_cdn_vmess", "cdn")
+        _, text = self.env.run(["4", "2", "2", "0", "0"], panel)
         self.assertIn("Cloudflare IP is not set", text)
         self.assertEqual(panel.writes, [])
 
-    def test_plain_cdn_template_needs_no_certificate(self):
+    def test_cdn_template_without_certificate_is_refused(self):
         env = Env(with_certs=False, paths=True)
         try:
             panel = FakePanel()
-            idx = env.index("http_ws_cdn_vmess", "cdn")
-            env.run(["5", "2", str(idx), CONFIRM_WORD, CONFIRM_WORD, "0"], panel)
-            self.assertEqual(len(panel.inbounds), 1)
-            self.assertEqual(panel.inbounds[0]["streamSettings"]["security"], "none")
+            idx = env.index("tls_ws_cdn_vmess", "cdn")
+            env.run(["4", "2", "2", "n", "n", str(idx), "0", "0"], panel)
+            self.assertEqual(panel.inbounds, [])
+            self.assertEqual(panel.writes, [])
         finally:
             env.close()
 

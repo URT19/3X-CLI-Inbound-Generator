@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Optional
 from panel.errors import PanelError
 from utils.naming import NamingError, build_name
 
-PLACEHOLDER = re.compile(r"\{\{([A-Z_]+)\}\}")
+PLACEHOLDER = re.compile(r"\{\{([A-Z0-9_]+)\}\}")
 REQUIRED_KEYS = {
     "template_id", "name", "template_version", "connection_mode",
     "protocol", "security", "required_inputs", "validation", "content",
@@ -43,6 +43,8 @@ class Template:
     deprecated: Optional[Dict[str, Any]] = None
     client_flow: str = ""
     source_file: str = ""
+    fixed_port: Optional[int] = None
+    origin_port: bool = False  # fixed port is an origin port behind a Cloudflare origin rule, not a Cloudflare port
     extra: Dict[str, Any] = field(default_factory=dict)
 
 
@@ -52,7 +54,7 @@ def _validate(doc: Dict[str, Any], path: str) -> Template:
         raise TemplateError(f"{path}: missing keys {sorted(missing)}")
     if not re.fullmatch(r"\d+\.\d+\.\d+", str(doc["template_version"])):
         raise TemplateError(f"{path}: template_version must look like 1.0.0")
-    if doc["connection_mode"] not in ("direct", "cdn", "relay", "local"):
+    if doc["connection_mode"] not in ("direct", "cdn", "relay", "local", "fallback"):
         raise TemplateError(f"{path}: unknown connection_mode {doc['connection_mode']!r}")
     if os.path.splitext(os.path.basename(path))[0] != doc["template_id"]:
         raise TemplateError(f"{path}: file name must equal template_id")
@@ -60,6 +62,10 @@ def _validate(doc: Dict[str, Any], path: str) -> Template:
         raise TemplateError(f"{path}: content must be an object")
     if not isinstance(doc["number"], int) or doc["number"] < 1:
         raise TemplateError(f"{path}: number must be a positive integer")
+    fixed_port = doc.get("fixed_port")
+    if fixed_port is not None:
+        if not isinstance(fixed_port, int) or not 1 <= fixed_port <= 65535 or fixed_port in RESERVED_PORTS:
+            raise TemplateError(f"{path}: fixed_port must be an integer 1-65535 and not 80 or 443")
     return Template(
         template_id=doc["template_id"],
         number=doc["number"],
@@ -75,6 +81,8 @@ def _validate(doc: Dict[str, Any], path: str) -> Template:
         deprecated=doc.get("deprecated"),
         client_flow=doc.get("client_flow", ""),
         source_file=path,
+        fixed_port=fixed_port,
+        origin_port=bool(doc.get("origin_port", False)),
     )
 
 
@@ -105,7 +113,7 @@ def _fill(node: Any, values: Dict[str, str]) -> Any:
     if isinstance(node, list):
         return [_fill(v, values) for v in node]
     if isinstance(node, str):
-        whole = re.fullmatch(r"\{\{([A-Z_]+)\}\}", node)
+        whole = re.fullmatch(r"\{\{([A-Z0-9_]+)\}\}", node)
         if whole:
             return values[whole.group(1)]
         def sub(match):

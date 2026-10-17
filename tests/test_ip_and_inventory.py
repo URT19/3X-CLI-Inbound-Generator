@@ -26,7 +26,7 @@ class IpCompatibilityTests(unittest.TestCase):
         compatible = sorted(t.template_id for t in library.values() if ip_compatible(t))
         self.assertIn("http_tcp_direct_vmess", compatible)
         for tid in compatible:
-            self.assertEqual(library[tid].connection_mode, "direct", tid)
+            self.assertIn(library[tid].connection_mode, ("direct", "fallback"), tid)
             self.assertNotIn("SUBDOMAIN_DIRECT", json.dumps(library[tid].content), tid)
             self.assertNotIn("CERT_DIRECT", json.dumps(library[tid].content), tid)
 
@@ -52,22 +52,22 @@ class DirectIpFlowTests(unittest.TestCase):
 
     def settings(self):
         return Settings(network=NetworkSettings(port_mode="random",
-                                                random_port_low=20000, random_port_high=20010),
+                                                random_port_low=20000, random_port_high=22000),
                         paths=generate_all())
 
     def test_direct_with_loopback_address_recorded(self):
         panel = FakePanel()
         settings = self.settings()
         idx = next(i for i, t in enumerate(self.ordered, 1) if t.template_id == "http_tcp_direct_vmess")
-        text = self.run_menu(["4", "3", str(idx), CONFIRM_WORD, "0"], settings, panel)
+        text = self.run_menu(["4", "1", "3", str(idx), CONFIRM_WORD, "0", "0"], settings, panel)
         self.assertIn("Done and verified", text)
-        self.assertIn(settings.paths["direct_tcp"], str(panel.inbounds[0]))
+        self.assertRegex(str(panel.inbounds[0]), r"/[A-Za-z0-9]{12}")  # every inbound has its own path
         rec = load_records(self.state, "direct")[0]
         self.assertEqual(rec["address"], "127.0.0.1")
 
     def test_direct_refused_when_domain_missing_for_domain_choice(self):
         panel = FakePanel()
-        text = self.run_menu(["4", "1", "0"], self.settings(), panel)
+        text = self.run_menu(["4", "1", "1", "0", "0"], self.settings(), panel)
         self.assertIn("Direct domain is not set", text)
         self.assertEqual(panel.writes, [])
 

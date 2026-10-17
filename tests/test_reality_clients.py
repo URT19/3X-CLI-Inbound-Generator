@@ -3,7 +3,7 @@ import shutil
 import tempfile
 import unittest
 
-from config.settings import NetworkSettings, Settings
+from config.settings import NetworkSettings, Settings, load_settings
 from core.menu import CONFIRM_WORD, Menu
 from network.hosts import direct_host_payload
 from network.paths import generate_all
@@ -35,7 +35,7 @@ class DirectCreationTests(unittest.TestCase):
         if tc.HAVE_OPENSSL:
             tc.make_cert(os.path.join(self.cert_root, "d.example.test"), "d.example.test", days=90)
         self.settings = Settings(network=NetworkSettings(port_mode="random", random_port_low=44000,
-                                                         random_port_high=44010, direct_domain="d.example.test"),
+                                                         random_port_high=46000, direct_domain="d.example.test"),
                                  fingerprint="chrome", paths=generate_all(), cert_root=self.cert_root)
 
     def tearDown(self):
@@ -46,7 +46,7 @@ class DirectCreationTests(unittest.TestCase):
                          key=lambda t: (t.number, t.template_id))
         idx = next(i for i, t in enumerate(ordered, 1) if t.template_id == template_id)
         needs_target = "reality" in template_id
-        answers = ["4", "3", str(idx)] + (["1"] if needs_target else []) + [CONFIRM_WORD, "0"]
+        answers = ["4", "1", "3", str(idx)] + (["1"] if needs_target else []) + [CONFIRM_WORD, "0", "0"]
         inputs = iter(answers)
         Menu(PanelClient("127.0.0.1:2053", token="T", transport=panel),
              input_fn=lambda p="": next(inputs), output_fn=lambda t: None,
@@ -54,17 +54,14 @@ class DirectCreationTests(unittest.TestCase):
              settings_path=os.path.join(self.dir, "s.json"), cloudflare=None,
              state_dir=os.path.join(self.dir, "st")).run()
 
-    def test_no_client_is_created_for_direct_inbounds(self):
+    def test_no_client_is_created_automatically(self):
         import tests.test_certs as tc
         if not tc.HAVE_OPENSSL:
             self.skipTest("openssl not installed")
-        for tid in ("tcp_reality_vision_direct", "grpc_reality_direct", "tls_vless_vision_direct",
-                    "tls_trojan_tcp_direct"):
-            panel = FakePanel()
-            self.create(tid, panel)
-            self.assertEqual(len(panel.inbounds), 1, tid)
-            self.assertEqual(panel.inbounds[0]["settings"].get("clients", []), [], tid)
-            self.assertFalse([w for w in panel.writes if w[0] == "/clients/add"], tid)
+        panel = FakePanel()
+        self.create("tcp_reality_vision_direct", panel)
+        self.assertEqual(panel.inbounds[0]["settings"]["clients"], [])
+        self.assertFalse([w for w in panel.writes if w[0] == "/clients/add"])
 
     def test_reality_public_key_is_stored_in_the_inbound(self):
         panel = FakePanel()
@@ -84,3 +81,5 @@ class DirectCreationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+

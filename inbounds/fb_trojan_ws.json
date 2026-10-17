@@ -1,22 +1,22 @@
 {
-  "template_id": "http_ws_cdn_vless",
-  "number": 18,
+  "template_id": "fb_trojan_ws",
+  "number": 34,
   "client_flow": "",
   "deprecated": {
     "reason": "ws transport is deprecated in Xray-core",
     "replace": "XHTTP (H2 and H3); the XHTTP templates use the same connection mode"
   },
-  "name": "18. VLESS WS Plain CDN (No TLS)",
+  "name": "34. Trojan WS FB",
   "template_version": "1.1.0",
   "source": {
     "repo": "https://github.com/URT19/3x-ui-generator",
     "commit": "46439c4",
     "file": "templates.js",
-    "source_content_id": 22,
-    "source_port": 2052
+    "source_content_id": null,
+    "source_port": 1
   },
-  "connection_mode": "cdn",
-  "protocol": "vless",
+  "connection_mode": "fallback",
+  "protocol": "trojan",
   "transport": "ws",
   "security": "plain",
   "port": {
@@ -29,18 +29,14 @@
   },
   "required_inputs": [
     "PATH_WS",
-    "PORT",
-    "SUBDOMAIN_CDN",
-    "WHITELIST_IP"
+    "PORT"
   ],
   "placeholders": [
     "PATH_WS",
-    "PORT",
-    "SUBDOMAIN_CDN",
-    "WHITELIST_IP"
+    "PORT"
   ],
   "naming": {
-    "remark_default": "18- http WS CDN vless",
+    "remark_default": null,
     "tag_pattern": "in-{PORT}-tcp"
   },
   "validation": {
@@ -61,52 +57,31 @@
       "vmess"
     ]
   },
-  "external_proxies": [
-    {
-      "remark": "imported 1",
-      "address": "{{WHITELIST_IP}}",
-      "port": 2052,
-      "security": "same",
-      "sni": "",
-      "alpn": [],
-      "sortOrder": 0
-    }
-  ],
+  "external_proxies": [],
   "content": {
-    "remark": "18- http WS CDN vless",
-    "enable": true,
-    "expiryTime": 0,
-    "trafficReset": "never",
-    "listen": "",
+    "listen": "127.0.0.1",
     "port": "{{PORT}}",
-    "protocol": "vless",
+    "protocol": "trojan",
+    "tag": "in-{{PORT}}-tcp",
     "settings": {
-      "clients": [],
-      "decryption": "none",
-      "encryption": "none"
+      "clients": []
+    },
+    "sniffing": {
+      "enabled": false
     },
     "streamSettings": {
       "network": "ws",
       "wsSettings": {
         "acceptProxyProtocol": false,
         "path": "{{PATH_WS}}",
-        "host": "{{SUBDOMAIN_CDN}}",
+        "host": "",
         "headers": {},
-        "heartbeatPeriod": 0
+        "heartbeatPeriod": 30
       },
       "security": "none"
     },
-    "tag": "in-{{PORT}}-tcp",
-    "sniffing": {
-      "enabled": true,
-      "destOverride": [
-        "http",
-        "tls",
-        "quic",
-        "fakedns"
-      ]
-    },
     "nodeId": null,
-    "fallbackParent": null
+    "fallbackParent": null,
+    "enable": true
   }
 }

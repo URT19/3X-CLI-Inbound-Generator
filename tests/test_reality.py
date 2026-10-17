@@ -41,7 +41,7 @@ class KeyAndTargetTests(unittest.TestCase):
     def test_targets_and_custom_values_are_validated(self):
         self.assertEqual(reality.validate_dest("www.apple.com:443"), "www.apple.com:443")
         self.assertEqual(reality.validate_sni("www.apple.com"), "www.apple.com")
-        for bad in ("www.apple.com", "bad_host:443", "1.2.3.4:443"):
+        for bad in ("www.apple.com", "bad_host:443", "203.0.113.4:443"):
             with self.assertRaises(reality.RealityError):
                 reality.validate_dest(bad)
         with self.assertRaises(reality.RealityError):
@@ -64,7 +64,7 @@ class RealityTemplateTests(unittest.TestCase):
         self.assertEqual(self.t.connection_mode, "direct")
 
     def test_resolves_renders_and_validates(self):
-        net = NetworkSettings(port_mode="random", random_port_low=40000, random_port_high=40010)
+        net = NetworkSettings(port_mode="random", random_port_low=40000, random_port_high=42000)
         res = resolve_values(self.t, net, {}, "/nonexistent", CF, [], status_fn=None,
                              reality={"dest": "www.apple.com:443", "sni": "www.apple.com"},
                              fingerprint="firefox")
@@ -80,7 +80,7 @@ class RealityTemplateTests(unittest.TestCase):
         self.assertNotIn("{{", json.dumps(payload))
 
     def test_missing_target_refused(self):
-        net = NetworkSettings(port_mode="random", random_port_low=40000, random_port_high=40010)
+        net = NetworkSettings(port_mode="random", random_port_low=40000, random_port_high=42000)
         res = resolve_values(self.t, net, {}, "/x", CF, [], status_fn=None, reality=None)
         self.assertTrue(any("REALITY target is not chosen" in p for p in res.problems))
 
@@ -93,7 +93,7 @@ class RealityMenuTests(unittest.TestCase):
         self.settings_path = os.path.join(self.dir, "s.json")
         self.library = load_library(os.path.join(ROOT, "inbounds"))
         self.settings = Settings(network=NetworkSettings(port_mode="random", random_port_low=40000,
-                                                         random_port_high=40050, direct_domain="d.example.test"),
+                                                         random_port_high=42000, direct_domain="d.example.test"),
                                  paths=generate_all(), fingerprint="chrome")
 
     def tearDown(self):
@@ -116,7 +116,7 @@ class RealityMenuTests(unittest.TestCase):
     def test_reality_created_with_chosen_target_and_keys_kept_private(self):
         panel = FakePanel()
         idx = self.reality_index()
-        out = self.run_menu(["4", "3", str(idx), "1", CONFIRM_WORD, "0"], panel)
+        out = self.run_menu(["4", "1", "3", str(idx), "1", CONFIRM_WORD, "0", "0"], panel)
         self.assertIn("Done and verified", out)
         inbound = panel.inbounds[0]
         rs = inbound["streamSettings"]["realitySettings"]
@@ -133,7 +133,7 @@ class RealityMenuTests(unittest.TestCase):
     def test_export_contains_no_reality_private_key(self):
         panel = FakePanel()
         idx = self.reality_index()
-        self.run_menu(["4", "3", str(idx), "1", CONFIRM_WORD, "0"], panel)
+        self.run_menu(["4", "1", "3", str(idx), "1", CONFIRM_WORD, "0", "0"], panel)
         saved = load_settings(self.settings_path).reality_keys
         data = build_inventory(panel.inbounds and [{"id": i["id"], "remark": i["remark"], "port": i["port"],
                                                     "protocol": i["protocol"], "enable": True}
@@ -147,7 +147,7 @@ class RealityMenuTests(unittest.TestCase):
         panel = FakePanel()
         idx = self.reality_index()
         custom = len(reality.DEFAULT_TARGETS) + 1
-        out = self.run_menu(["4", "3", str(idx), str(custom), "bad target", "x", "0"], panel)
+        out = self.run_menu(["4", "1", "3", str(idx), str(custom), "bad target", "x", "0", "0"], panel)
         self.assertIn("host:443", out)
         self.assertEqual(panel.writes, [])
 
@@ -156,7 +156,7 @@ class RealityMenuTests(unittest.TestCase):
         ordered = sorted((t for t in self.library.values() if t.connection_mode == "direct"),
                          key=lambda t: (t.number, t.template_id))
         idx = next(i for i, t in enumerate(ordered, 1) if t.template_id == "http_tcp_direct_vmess")
-        out = self.run_menu(["4", "3", str(idx), "n", "0"], panel)
+        out = self.run_menu(["4", "1", "3", str(idx), "n", "0", "0"], panel)
         self.assertNotIn("REALITY target", out)
 
 
@@ -168,7 +168,7 @@ if __name__ == "__main__":
 class RealityTransportVariantTests(unittest.TestCase):
     def setUp(self):
         self.lib = load_library(os.path.join(ROOT, "inbounds"))
-        self.net = NetworkSettings(port_mode="random", random_port_low=40000, random_port_high=40010)
+        self.net = NetworkSettings(port_mode="random", random_port_low=40000, random_port_high=42000)
         self.paths = generate_all()
 
     def build(self, template_id):
@@ -210,7 +210,7 @@ class RealityTransportVariantTests(unittest.TestCase):
                              key=lambda t: (t.number, t.template_id))
             idx = next(i for i, t in enumerate(ordered, 1) if t.template_id == "grpc_reality_direct")
             panel = FakePanel()
-            inputs = iter(["4", "3", str(idx), "1", CONFIRM_WORD, "0"])
+            inputs = iter(["4", "1", "3", str(idx), "1", CONFIRM_WORD, "0", "0"])
             Menu(PanelClient("127.0.0.1:2053", token="T", transport=panel),
                  input_fn=lambda p="": next(inputs), output_fn=lambda t: None,
                  library=self.lib, settings=settings, settings_path=os.path.join(dir_, "s.json"),

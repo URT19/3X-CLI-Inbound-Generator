@@ -50,7 +50,7 @@ class MainMenuTests(unittest.TestCase):
     def test_reports_menu_shows_protocol_support(self):
         import tempfile
         state = tempfile.mkdtemp()
-        inputs = iter(["12", "0"])
+        inputs = iter(["9", "0"])
         out = []
         Menu(None, input_fn=lambda p="": next(inputs), output_fn=lambda x: out.append(str(x)),
              state_dir=state).run()
@@ -62,12 +62,14 @@ class MainMenuTests(unittest.TestCase):
     def test_menu_shows_all_numbered_items_in_order(self):
         _, text = run_menu(["0"], FakePanel())
         for label in ("Check and install prerequisites", "Panel connection",
-                      "Generate DIRECT Inbounds", "Generate CDN Inbounds", "Generate FAKE SITE Inbounds",
-                      "Generate RELAY Inbounds", "SSL certificate management",
+                      "Generate Inbounds", "SSL certificate management",
                       "Manage panel inbounds", "Create inbound from template"):
             self.assertIn(label, text)
-        self.assertLess(text.index("Generate DIRECT Inbounds"), text.index("Generate CDN Inbounds"))
         self.assertNotIn("Direct with IP", text)
+        _, sub = run_menu(["4", "0", "0"], FakePanel())
+        for label in ("DIRECT", "CDN", "FAKE SITE", "RELAY"):
+            self.assertIn(label, sub)
+        self.assertLess(sub.index("DIRECT"), sub.index("CDN"))
 
     def test_screen_is_cleared_before_each_render(self):
         log = []
@@ -77,9 +79,9 @@ class MainMenuTests(unittest.TestCase):
     def test_header_shows_version_and_counts_per_connection_type(self):
         library = load_library(os.path.join(ROOT, "inbounds"))
         _, text = run_menu(["0"], FakePanel(), library=library)
-        self.assertIn("v1.19.0", text)
-        self.assertIn("direct=18", text)
-        self.assertIn("cdn=12", text)
+        self.assertIn("v1.33.1", text)
+        self.assertIn("direct=20", text)
+        self.assertIn("cdn=6", text)
         self.assertIn("fake=0", text)
         self.assertIn("relay=0", text)
         self.assertIn("local=0", text)
@@ -120,7 +122,7 @@ class PanelConnectionTests(unittest.TestCase):
                                    transport=FakePanel())
 
             menu, text = run_menu(
-                ["2", "2", "1.2.3.4:2053", "0", "0"], FakePanel(),
+                ["2", "2", "203.0.113.4:2053", "0", "0"], FakePanel(),
                 settings=Settings(), settings_path=path,
                 client_factory=factory, secret=iter(["SECRET_TOKEN_9999"]),
             )
@@ -128,11 +130,11 @@ class PanelConnectionTests(unittest.TestCase):
             mode = stat.S_IMODE(os.stat(path).st_mode)
             self.assertEqual(mode, 0o600)
             saved = load_settings(path)
-            self.assertEqual(saved.panel_address, "1.2.3.4:2053")
+            self.assertEqual(saved.panel_address, "203.0.113.4:2053")
             self.assertEqual(saved.api_token, "SECRET_TOKEN_9999")
             self.assertNotIn("SECRET_TOKEN_9999", text)  # never printed in full
             self.assertIn("9999", text)                  # masked suffix only
-            self.assertEqual(created[0].panel_address, "1.2.3.4:2053")
+            self.assertEqual(created[0].panel_address, "203.0.113.4:2053")
 
     def test_edit_with_bad_address_saves_nothing(self):
         with tempfile.TemporaryDirectory() as d:
@@ -153,29 +155,29 @@ class PanelConnectionTests(unittest.TestCase):
 class PanelInboundTests(unittest.TestCase):
     def test_list_inbounds(self):
         panel = FakePanel([{"id": 1, "remark": "x", "protocol": "vless", "port": 9000, "enable": True}])
-        _, text = run_menu(["9", "1", "0", "0"], panel)
+        _, text = run_menu(["6", "1", "0", "0"], panel)
         self.assertIn("[1] x", text)
 
     def test_list_empty_panel(self):
-        _, text = run_menu(["9", "1", "0", "0"], FakePanel())
+        _, text = run_menu(["6", "1", "0", "0"], FakePanel())
         self.assertIn("no inbounds", text)
 
     def test_panel_actions_refused_when_not_configured(self):
         out = []
-        inputs = iter(["9", "1", "0", "0"])
+        inputs = iter(["6", "1", "0", "0"])
         Menu(None, input_fn=lambda p="": next(inputs), output_fn=lambda t: out.append(str(t))).run()
         self.assertIn("Panel is not configured", "\n".join(out))
 
     def test_delete_cancelled_without_confirm_sends_nothing(self):
         panel = FakePanel([{"id": 1, "remark": "a", "port": 8443, "enable": True, "listen": ""}])
-        _, text = run_menu(["9", "6", "1", "nope", "0", "0"], panel)
+        _, text = run_menu(["6", "6", "1", "nope", "0", "0"], panel)
         self.assertIn("Cancelled", text)
         self.assertEqual(panel.writes, [])
         self.assertEqual(len(panel.inbounds), 1)
 
     def test_delete_confirmed(self):
         panel = FakePanel([{"id": 1, "remark": "a", "port": 8443, "enable": True, "listen": ""}])
-        _, text = run_menu(["9", "6", "1", CONFIRM_WORD, "0", "0"], panel)
+        _, text = run_menu(["6", "6", "1", CONFIRM_WORD, "0", "0"], panel)
         self.assertIn('"current"', text)
         self.assertIn("Done and verified", text)
         self.assertEqual(panel.inbounds, [])
@@ -183,13 +185,13 @@ class PanelInboundTests(unittest.TestCase):
     def test_add_from_file_with_confirm(self):
         panel = FakePanel()
         files = {"p.json": json.dumps(new_payload())}
-        _, text = run_menu(["9", "3", "p.json", CONFIRM_WORD, "0", "0"], panel, files)
+        _, text = run_menu(["6", "3", "p.json", CONFIRM_WORD, "0", "0"], panel, files)
         self.assertIn("Done and verified", text)
         self.assertEqual(len(panel.inbounds), 1)
 
     def test_set_enable_flow(self):
         panel = FakePanel([{"id": 2, "remark": "b", "port": 9000, "enable": True, "listen": ""}])
-        run_menu(["9", "5", "2", "d", CONFIRM_WORD, "0", "0"], panel)
+        run_menu(["6", "5", "2", "d", CONFIRM_WORD, "0", "0"], panel)
         self.assertFalse(panel.inbounds[0]["enable"])
 
 

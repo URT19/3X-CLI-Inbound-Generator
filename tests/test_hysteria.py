@@ -32,7 +32,7 @@ class HysteriaTemplateTests(unittest.TestCase):
         self.assertEqual(self.t.content["settings"], {"version": 2})
 
     def test_placeholders_are_port_password_and_direct_certificate(self):
-        placeholders = set(re.findall(r"\{\{([A-Z_]+)\}\}", json.dumps(self.t.content)))
+        placeholders = set(re.findall(r"\{\{([A-Z0-9_]+)\}\}", json.dumps(self.t.content)))
         self.assertEqual(placeholders, {"PORT", "HY_PASSWORD", "CERT_DIRECT", "KEY_DIRECT", "SUBDOMAIN_DIRECT"})
 
     def test_certificate_comes_from_direct_domain(self):
@@ -45,7 +45,7 @@ class HysteriaRenderTests(unittest.TestCase):
     def setUp(self):
         self.t = load_library(os.path.join(ROOT, "inbounds"))["tls_hysteria_direct"]
         self.net = NetworkSettings(port_mode="random",
-                                   random_port_low=35000, random_port_high=35010)
+                                   random_port_low=35000, random_port_high=37000)
         self.ok = lambda domain: CertStatus(domain, "ok", "fine", "", "")
 
     def resolve(self):

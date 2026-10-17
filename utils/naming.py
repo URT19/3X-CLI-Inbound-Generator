@@ -31,11 +31,10 @@ def _base(template, mode_label: Optional[str] = None) -> str:
         transport = TRANSPORT_LABELS[template.transport]
     except KeyError as exc:
         raise NamingError(f"No label for transport {template.transport!r}") from exc
-    security = {"tls": "TLS", "reality": "REALITY"}.get(template.security, "PLAIN")
-    return (
-        f"{template.number:02d}-{template.protocol.upper()}-{transport}-"
-        f"{(mode_label or template.connection_mode).upper()}-{security}"
-    )
+    security = {"tls": "TLS", "reality": "REALITY"}.get(template.security, "")
+    mode = (mode_label or ("FB" if template.connection_mode == "fallback" else template.connection_mode)).upper()
+    base = f"{template.number:02d}-{template.protocol.upper()}-{transport}-{mode}"
+    return f"{base}-{security}" if security else base
 
 
 def build_name(template, existing: Iterable[str], max_length: int = MAX_NAME_LENGTH,

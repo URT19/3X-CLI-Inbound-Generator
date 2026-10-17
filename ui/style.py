@@ -39,6 +39,10 @@ class Style:
     def warn(self, text: str) -> str:
         return self.paint(text, "yellow")
 
+    def question(self, text: str) -> str:
+        """Questions that wait for the user's answer are shown in yellow."""
+        return self.paint(text, "yellow")
+
     def error(self, text: str) -> str:
         return self.paint(text, "bold", "red")
 

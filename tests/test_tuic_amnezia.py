@@ -39,7 +39,7 @@ class TuicTests(unittest.TestCase):
         self.t = library()["tls_tuic_direct"]
         make_cert_dir(self.root, "direct.example.test")
         self.net = NetworkSettings(direct_domain="direct.example.test", port_mode="random",
-                                   random_port_low=36000, random_port_high=36010)
+                                   random_port_low=36000, random_port_high=38000)
 
     def tearDown(self):
         shutil.rmtree(self.root, ignore_errors=True)
@@ -108,7 +108,7 @@ class AmneziaTests(unittest.TestCase):
             amnezia.validate(p)
 
     def test_apply_writes_every_server_value(self):
-        payload = render(self.t, {"PORT": 13798, **amnezia.placeholders_for(self.params())}, remark="24-AWG-AWG-DIRECT-PLAIN")
+        payload = render(self.t, {"PORT": 13798, **amnezia.placeholders_for(self.params())}, remark="24-AWG-AWG-DIRECT")
         amnezia.apply_to_payload(payload, self.params())
         self.assertEqual(payload["settings"]["server"]["privateKey"], self.params()["privateKey"])
         self.assertEqual(payload["settings"]["clients"], [])
@@ -176,7 +176,7 @@ class HysteriaCertificateRuleTests(unittest.TestCase):
             lib = library()
             t = lib["tls_hysteria_direct"]
             net = NetworkSettings(direct_domain="direct.example.test", port_mode="random",
-                                  random_port_low=37000, random_port_high=37010)
+                                  random_port_low=37000, random_port_high=39000)
             if with_cert:
                 make_cert_dir(os.path.join(d, "cert"), "direct.example.test")
             settings = Settings(network=net, paths={}, fingerprint="chrome", cert_root=os.path.join(d, "cert"))
@@ -184,7 +184,7 @@ class HysteriaCertificateRuleTests(unittest.TestCase):
             state = os.path.join(d, "state")
             direct_sorted = sorted([x for x in lib.values() if x.connection_mode == "direct"],
                                    key=lambda x: (x.number, x.template_id))
-            inputs = iter(["4", "1", str(direct_sorted.index(t) + 1), "", "0"])
+            inputs = iter(["4", "1", "1", str(direct_sorted.index(t) + 1), "", "0", "0"])
             out = []
             Menu(PanelClient("127.0.0.1:2053", token="T", transport=panel),
                  input_fn=lambda p="": next(inputs), output_fn=lambda x: out.append(str(x)),

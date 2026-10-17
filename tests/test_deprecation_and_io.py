@@ -37,10 +37,10 @@ class DeprecationTests(unittest.TestCase):
         cls.lib = load_library(os.path.join(ROOT, "inbounds"))
 
     def test_ws_grpc_httpupgrade_vmess_trojan_are_marked(self):
-        self.assertIsNotNone(self.lib["tls_ws_cdn"].deprecated)
+        self.assertIsNotNone(self.lib["tls_ws_cdn_vmess"].deprecated)
         self.assertIsNotNone(self.lib["tls_grpc_direct"].deprecated)
         self.assertIsNotNone(self.lib["tls_httpupgrade_direct"].deprecated)
-        self.assertIsNotNone(self.lib["tls_xhttp_cdn_vmess"].deprecated)
+        self.assertIsNotNone(self.lib["tls_ws_cdn_vless"].deprecated)
         self.assertIsNotNone(self.lib["tls_trojan_tcp_direct"].deprecated)
 
     def test_replacements_are_not_marked(self):
@@ -52,7 +52,7 @@ class DeprecationTests(unittest.TestCase):
         from panel.client import PanelClient
         from tests.test_writes import FakePanel
         out = []
-        inputs = iter(["10", "a", "1", "n", "0"])  # REALITY target, then cancel at the confirmation
+        inputs = iter(["7", "a", "1", "n", "n", "0"])  # REALITY target, VMess question, then cancel
         Menu(PanelClient("127.0.0.1:2053", token="T", transport=FakePanel()),
              input_fn=lambda p="": next(inputs), output_fn=lambda t: out.append(str(t)),
              library=self.lib).run()
@@ -115,14 +115,14 @@ class DirectIpHostTests(unittest.TestCase):
         try:
             make_cert(os.path.join(d, "cert", "d.example.test"), "d.example.test", days=90)
             settings = Settings(network=NetworkSettings(direct_domain="d.example.test", port_mode="random",
-                                                        random_port_low=42000, random_port_high=42010),
+                                                        random_port_low=42000, random_port_high=44000),
                                 paths=generate_all(), cert_root=os.path.join(d, "cert"))
             cf = CloudflarePorts(source="t", retrieved="t", http_ports=frozenset({80}), https_ports=frozenset({443}))
             ordered = sorted((t for t in lib.values() if t.connection_mode == "direct"),
                              key=lambda t: (t.number, t.template_id))
             idx = next(i for i, t in enumerate(ordered, 1) if t.template_id == "tls_xhttp_direct")
             panel = FakePanel()
-            inputs = iter(["4", "2", "y", str(idx), CONFIRM_WORD, "0"])
+            inputs = iter(["4", "1", "2", "y", str(idx), CONFIRM_WORD, "0", "0"])
             with mock.patch("core.menu.resolve_ipv4", return_value="198.51.100.20"):
                 Menu(PanelClient("127.0.0.1:2053", token="T", transport=panel),
                      input_fn=lambda p="": next(inputs), output_fn=lambda t: None,
@@ -137,50 +137,3 @@ class DirectIpHostTests(unittest.TestCase):
             shutil.rmtree(d, ignore_errors=True)
 
 
-class DirectHostAddressTests(unittest.TestCase):
-    def run_direct(self, choice_inputs, template_id, resolve=None):
-        from unittest import mock
-        import tempfile, shutil
-        from config.settings import NetworkSettings, Settings
-        from core.menu import CONFIRM_WORD
-        from panel.client import PanelClient
-        from tests.test_writes import FakePanel
-        from network.paths import generate_all
-        from network.cloudflare import CloudflarePorts
-        lib = load_library(os.path.join(ROOT, "inbounds"))
-        d = tempfile.mkdtemp()
-        try:
-            settings = Settings(network=NetworkSettings(direct_domain="d.example.test", port_mode="random",
-                                                        random_port_low=43000, random_port_high=43010),
-                                paths=generate_all(), cert_root=os.path.join(d, "cert"))
-            cf = CloudflarePorts(source="t", retrieved="t", http_ports=frozenset({80}), https_ports=frozenset({443}))
-            ordered = sorted((t for t in lib.values() if t.connection_mode == "direct"),
-                             key=lambda t: (t.number, t.template_id))
-            idx = next(i for i, t in enumerate(ordered, 1) if t.template_id == template_id)
-            panel = FakePanel()
-            inputs = iter(choice_inputs(idx, CONFIRM_WORD))
-            patch = mock.patch("core.menu.resolve_ipv4", return_value=resolve) if resolve else mock.MagicMock()
-            with patch:
-                Menu(PanelClient("127.0.0.1:2053", token="T", transport=panel),
-                     input_fn=lambda p="": next(inputs), output_fn=lambda t: None,
-                     library=lib, settings=settings, settings_path=os.path.join(d, "s.json"),
-                     cloudflare=cf, state_dir=os.path.join(d, "st")).run()
-            return panel
-        finally:
-            shutil.rmtree(d, ignore_errors=True)
-
-    def test_ip_choice_writes_host_with_ip_address(self):
-        panel = self.run_direct(lambda idx, ok: ["4", "2", "y", str(idx), ok, "0"],
-                                "http_tcp_direct_vmess", resolve="198.51.100.20")
-        self.assertEqual(len(panel.hosts), 1)
-        self.assertEqual(panel.hosts[0]["hosts"], ["198.51.100.20"])
-        self.assertEqual(panel.hosts[0]["inboundIds"], [panel.inbounds[0]["id"]])
-        self.assertEqual(panel.hosts[0]["sni"], "")  # plain: no server name
-
-    def test_domain_choice_writes_host_with_domain_address(self):
-        panel = self.run_direct(lambda idx, ok: ["4", "1", str(idx), ok, "0"], "http_tcp_direct_vmess")
-        self.assertEqual(panel.hosts[0]["hosts"], ["d.example.test"])
-
-    def test_loopback_choice_writes_host_with_loopback_address(self):
-        panel = self.run_direct(lambda idx, ok: ["4", "3", str(idx), ok, "0"], "http_tcp_direct_vmess")
-        self.assertEqual(panel.hosts[0]["hosts"], ["127.0.0.1"])

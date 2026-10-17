@@ -57,7 +57,7 @@ class SslMenuTests(unittest.TestCase):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     def test_ssl_not_needed_is_recorded(self):
-        menu, text, calls = drive(["8", "1", "example.test", "n", "0", "0"], None,
+        menu, text, calls = drive(["5", "1", "example.test", "n", "0", "0"], None,
                                   self.settings_path, self.root, self.acme)
         self.assertIn("SSL not needed", text)
         self.assertEqual(calls, [])
@@ -65,7 +65,7 @@ class SslMenuTests(unittest.TestCase):
 
     def test_taken_and_valid_is_reported_without_issuing(self):
         make_cert(os.path.join(self.root, "example.test"), "example.test", days=90)
-        menu, text, calls = drive(["8", "1", "example.test", "y", "y", "0", "0"], None,
+        menu, text, calls = drive(["5", "1", "example.test", "y", "y", "0", "0"], None,
                                   self.settings_path, self.root, self.acme)
         self.assertIn("example.test: ok", text)
         self.assertEqual(calls, [])
@@ -73,14 +73,14 @@ class SslMenuTests(unittest.TestCase):
 
     def test_taken_and_due_for_renewal_offers_issue(self):
         make_cert(os.path.join(self.root, "example.test"), "example.test", days=10)
-        menu, text, calls = drive(["8", "1", "example.test", "y", "y", "n", "0", "0"], None,
+        menu, text, calls = drive(["5", "1", "example.test", "y", "y", "n", "0", "0"], None,
                                   self.settings_path, self.root, self.acme)
         self.assertIn("renew", text)
         self.assertEqual(calls, [])
 
     def test_issue_when_missing_requires_confirm(self):
         menu, text, calls = drive(
-            ["8", "1", "example.test", "y", "n", "", CONFIRM_WORD, "0", "0"],
+            ["5", "1", "example.test", "y", "n", "", CONFIRM_WORD, "0", "0"],
             None, self.settings_path, self.root, self.acme,
         )
         self.assertIn("Planned commands", text)
@@ -91,7 +91,7 @@ class SslMenuTests(unittest.TestCase):
 
     def test_issue_cancelled_runs_nothing(self):
         _, text, calls = drive(
-            ["8", "1", "example.test", "y", "n", "", "no", "0", "0"],
+            ["5", "1", "example.test", "y", "n", "", "no", "0", "0"],
             None, self.settings_path, self.root, self.acme,
         )
         self.assertIn("Cancelled", text)
@@ -99,21 +99,21 @@ class SslMenuTests(unittest.TestCase):
 
     def test_missing_acme_is_reported(self):
         _, text, calls = drive(
-            ["8", "1", "example.test", "y", "n", "0", "0"],
+            ["5", "1", "example.test", "y", "n", "0", "0"],
             None, self.settings_path, self.root, os.path.join(self.tmp, "absent.sh"),
         )
         self.assertIn("acme.sh not found", text)
         self.assertEqual(calls, [])
 
     def test_invalid_domain_refused(self):
-        _, text, calls = drive(["8", "1", "bad domain", "0", "0"], None,
+        _, text, calls = drive(["5", "1", "bad domain", "0", "0"], None,
                                self.settings_path, self.root, self.acme)
         self.assertIn("Not a valid domain", text)
         self.assertEqual(calls, [])
 
     def test_no_private_key_content_is_printed(self):
         make_cert(os.path.join(self.root, "example.test"), "example.test", days=90)
-        _, text, _ = drive(["8", "1", "example.test", "y", "y", "0", "0"], None,
+        _, text, _ = drive(["5", "1", "example.test", "y", "y", "0", "0"], None,
                            self.settings_path, self.root, self.acme)
         self.assertNotIn("BEGIN PRIVATE KEY", text)
         self.assertNotIn("BEGIN RSA PRIVATE KEY", text)

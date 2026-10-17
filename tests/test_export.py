@@ -4,12 +4,17 @@ import shutil
 import tempfile
 import unittest
 
-import yaml
+try:
+    import yaml  # tests only; the program itself needs no third-party package
+except ImportError:  # pragma: no cover
+    yaml = None
 
 from config.settings import Settings
 from core.menu import Menu
 from panel.client import PanelClient
 from state.export import build_inventory, to_yaml
+
+needs_yaml = unittest.skipUnless(yaml, "PyYAML is not installed (tests only)")
 from state.records import append_record
 from tests.test_writes import FakePanel
 
@@ -22,14 +27,14 @@ class BuildTests(unittest.TestCase):
             {"id": 1, "remark": "01-A", "port": 9000, "protocol": "vless", "enable": True},
             {"id": 2, "remark": "manual", "port": 9100, "protocol": "trojan", "enable": False},
         ]
-        local = {"direct": [{"inbound_id": 1, "name": "01-A", "port": 9000, "address": "1.2.3.4",
+        local = {"direct": [{"inbound_id": 1, "name": "01-A", "port": 9000, "address": "203.0.113.4",
                              "path": "/p", "security": "tls", "template_id": "t"}], "cdn": []}
         data = build_inventory(rows, local, now=0)
         self.assertEqual(data["count"], 2)
         self.assertEqual(data["managed_count"], 1)
         first, second = data["inbounds"]
         self.assertEqual(first["path"], "/p")
-        self.assertEqual(first["address"], "1.2.3.4")
+        self.assertEqual(first["address"], "203.0.113.4")
         self.assertEqual(first["connection_mode"], "direct")
         self.assertTrue(first["managed"])
         self.assertFalse(second["managed"])
@@ -43,6 +48,7 @@ class BuildTests(unittest.TestCase):
         self.assertIsNone(data["inbounds"][0]["path"])
 
 
+@needs_yaml
 class YamlTests(unittest.TestCase):
     def test_yaml_parses_back_to_same_data(self):
         rows = [{"id": 1, "remark": "01-A: \"quoted\"", "port": 9000, "protocol": "vless", "enable": True}]
@@ -61,15 +67,16 @@ class ExportMenuTests(unittest.TestCase):
         self.root = tempfile.mkdtemp()
         self.state = os.path.join(self.root, "state", "local_inbounds")
         append_record(self.state, "direct", {"inbound_id": 1, "name": "01-A", "port": 9000,
-                                             "path": "/abc", "address": "1.2.3.4", "security": "none"})
+                                             "path": "/abc", "address": "203.0.113.4", "security": "none"})
 
     def tearDown(self):
         shutil.rmtree(self.root, ignore_errors=True)
 
+    @needs_yaml
     def test_export_writes_json_and_yaml_and_shows_paths(self):
         panel = FakePanel([{"id": 1, "remark": "01-A", "port": 9000, "protocol": "vless", "enable": True,
                             "listen": ""}])
-        inputs = iter(["11", "0"])
+        inputs = iter(["8", "0"])
         out = []
         client = PanelClient("127.0.0.1:2053", token=FAKE_TOKEN, transport=panel)
         Menu(client, input_fn=lambda p="": next(inputs), output_fn=lambda t: out.append(str(t)),
@@ -90,7 +97,7 @@ class ExportMenuTests(unittest.TestCase):
 
     def test_export_contains_no_token(self):
         panel = FakePanel([{"id": 1, "remark": "01-A", "port": 9000, "protocol": "vless", "enable": True}])
-        inputs = iter(["11", "0"])
+        inputs = iter(["8", "0"])
         client = PanelClient("127.0.0.1:2053", token=FAKE_TOKEN, transport=panel)
         Menu(client, input_fn=lambda p="": next(inputs), output_fn=lambda t: None,
              state_dir=self.state, root=self.root).run()
@@ -99,7 +106,7 @@ class ExportMenuTests(unittest.TestCase):
                 self.assertNotIn(FAKE_TOKEN, fh.read())
 
     def test_export_without_client_is_refused(self):
-        inputs = iter(["11", "0"])
+        inputs = iter(["8", "0"])
         out = []
         Menu(None, input_fn=lambda p="": next(inputs), output_fn=lambda t: out.append(str(t)),
              state_dir=self.state, root=self.root).run()

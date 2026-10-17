@@ -1,0 +1,2 @@
+# Needed only by the YAML export tests. The program itself uses the standard library only.
+pyyaml

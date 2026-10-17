@@ -172,6 +172,19 @@ class PanelClient(InboundWriteMixin):
             raise PanelResponseError("Slim inbound list is not an array")
         return obj
 
+    def download_database(self) -> bytes:
+        """Download the panel database (GET /panel/api/server/getDb). The file contains secrets."""
+        status, _headers, raw = self._raw("GET", "/panel/api/server/getDb")
+        if status in (401, 403):
+            raise PanelAuthError("Panel rejected the database download (check the token scope)")
+        if status == 404:
+            raise PanelNotFound("Database download route not found; check the panel version")
+        if status != 200:
+            raise PanelResponseError(f"Database download failed (HTTP {status})")
+        if raw[:1] == b"{":
+            raise PanelResponseError("Panel returned JSON instead of the database file")
+        return raw
+
     def get_inbound(self, inbound_id: int) -> Dict[str, Any]:
         if not isinstance(inbound_id, int) or inbound_id <= 0:
             raise PanelError("Inbound id must be a positive integer")

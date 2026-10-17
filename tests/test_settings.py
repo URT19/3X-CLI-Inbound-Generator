@@ -18,7 +18,7 @@ class SettingsTests(unittest.TestCase):
     def test_round_trip_and_permissions(self):
         with tempfile.TemporaryDirectory() as d:
             path = os.path.join(d, "settings.json")
-            save_settings(path, Settings(panel_address="1.2.3.4:2053", api_token="abcdwxyz"))
+            save_settings(path, Settings(panel_address="203.0.113.4:2053", api_token="abcdwxyz"))
             loaded = load_settings(path)
             self.assertEqual(loaded.api_token, "abcdwxyz")
             self.assertTrue(loaded.is_configured())

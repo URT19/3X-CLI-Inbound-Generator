@@ -9,14 +9,14 @@ LIB = os.path.join(ROOT, "inbounds")
 EXPECTED_IDS = {
     "tls_xhttp_direct", "tls_tcp_direct", "tls_ws_direct", "tls_httpupgrade_direct",
     "tls_grpc_direct", "http_httpupgrade_direct", "http_ws_direct_vless",
-    "http_tcp_direct_vmess", "http_ws_direct_vmess", "tls_ws_cdn",
-    "tls_grpc_cdn_vmess", "tls_xhttp_cdn_vless", "tls_xhttp_cdn_vmess",
-    "tls_httpupgrade_cdn_vmess", "tls_ws_cdn_trojan", "http_httpupgrade_cdn_vless",
-    "http_httpupgrade_cdn_vmess", "http_ws_cdn_vless", "http_ws_cdn_vmess",
-    "http_xhttp_cdn_vless", "http_xhttp_cdn_vmess", "tls_hysteria_direct",
+    "http_tcp_direct_vmess", "http_ws_direct_vmess",
+    "tls_ws_cdn_vless", "tls_httpupgrade_cdn_vless", "tls_xhttp_cdn_vless",
+    "tls_grpc_cdn_vless", "tls_ws_cdn_vmess", "tls_xhttp_su_cdn_vless", "tls_hysteria_direct",
     "tls_tuic_direct", "udp_amneziawg_direct", "tcp_reality_vision_direct",
     "grpc_reality_direct", "xhttp_reality_direct", "tls_vless_vision_direct", "tls_trojan_tcp_direct",
-    "tcp_reality_plain_direct",
+    "tcp_reality_vision_direct",
+    "tls_vmess_ws_direct", "tls_vless_grpc_direct", "tls_vless_httpupgrade_direct",
+    "fb_vless_ws", "fb_vless_tcp", "fb_vless_httpupgrade", "fb_trojan_ws", "fb_trojan_httpupgrade",
 }
 
 
@@ -27,7 +27,7 @@ class LibraryTests(unittest.TestCase):
 
     def test_all_reference_templates_are_present(self):
         self.assertEqual(set(self.library), EXPECTED_IDS)
-        self.assertEqual(len(self.library), 30)
+        self.assertEqual(len(self.library), 31)
 
     def test_no_template_has_a_fixed_port(self):
         for tid, t in self.library.items():
@@ -36,7 +36,7 @@ class LibraryTests(unittest.TestCase):
 
     def test_connection_modes_match_source_ids(self):
         for tid, t in self.library.items():
-            expected = "cdn" if "_cdn" in tid else "direct"
+            expected = "fallback" if tid.startswith("fb_") else ("cdn" if "_cdn" in tid else "direct")
             self.assertEqual(t.connection_mode, expected, tid)
 
     def test_only_protocols_from_source_or_panel_example_are_used(self):
@@ -66,8 +66,8 @@ class RenderTests(unittest.TestCase):
         return values
 
     def test_render_cdn_ws_vmess(self):
-        t = self.library["tls_ws_cdn"]
-        payload = render(t, self.inputs_for("tls_ws_cdn", 8443))
+        t = self.library["tls_ws_cdn_vmess"]
+        payload = render(t, self.inputs_for("tls_ws_cdn_vmess", 8443))
         self.assertEqual(payload["port"], 8443)
         self.assertEqual(payload["tag"], "in-8443-tcp")
         self.assertNotIn("{{", json.dumps(payload))
@@ -79,8 +79,8 @@ class RenderTests(unittest.TestCase):
             self.assertNotIn("{{", json.dumps(payload), tid)
 
     def test_missing_input_refused(self):
-        t = self.library["tls_ws_cdn"]
-        values = self.inputs_for("tls_ws_cdn")
+        t = self.library["tls_ws_cdn_vmess"]
+        values = self.inputs_for("tls_ws_cdn_vmess")
         values.pop(next(k for k in t.required_inputs if k != "PORT"))
         with self.assertRaisesRegex(TemplateError, "Missing inputs"):
             render(t, values)
@@ -91,14 +91,14 @@ class RenderTests(unittest.TestCase):
             render(t, self.inputs_for("tls_xhttp_cdn_vless", 443))
 
     def test_non_integer_port_refused(self):
-        t = self.library["tls_ws_cdn"]
+        t = self.library["tls_ws_cdn_vmess"]
         with self.assertRaises(TemplateError):
-            render(t, self.inputs_for("tls_ws_cdn", "abc"))
+            render(t, self.inputs_for("tls_ws_cdn_vmess", "abc"))
 
     def test_render_does_not_mutate_library(self):
-        t = self.library["tls_ws_cdn"]
+        t = self.library["tls_ws_cdn_vmess"]
         before = json.dumps(t.content, sort_keys=True)
-        render(t, self.inputs_for("tls_ws_cdn", 9000))
+        render(t, self.inputs_for("tls_ws_cdn_vmess", 9000))
         self.assertEqual(before, json.dumps(t.content, sort_keys=True))
 
 
@@ -139,14 +139,20 @@ class ExternalProxyTests(unittest.TestCase):
         for tid, t in self.library.items():
             self.assertNotIn("externalProxy", t.content.get("streamSettings", {}), tid)
 
-    def test_cdn_templates_with_legacy_proxy_have_host_entries(self):
-        for tid in ("tls_ws_cdn", "tls_xhttp_cdn_vless", "http_ws_cdn_vmess"):
-            self.assertTrue(self.library[tid].external_proxies, tid)
+    def test_cdn_templates_have_no_host_entries(self):
+        # The menu creates one CDN host for the whole run; templates add none of their own.
+        for t in self.library.values():
+            if t.connection_mode == "cdn":
+                self.assertEqual(t.external_proxies, [], t.template_id)
 
     def test_host_render_maps_fields_like_panel_source(self):
         from templates.loader import render_hosts
-        t = self.library["tls_ws_cdn"]
-        values = {"PORT": 8443, **{k: f"VAL_{k}" for k in t.required_inputs if k != "PORT"}}
+        import dataclasses
+        t = dataclasses.replace(self.library["tls_ws_cdn_vmess"], external_proxies=[{
+            "remark": "imported 1", "address": "{{WHITELIST_IP}}", "port": 8443,
+            "security": "same", "sni": "", "alpn": [], "sortOrder": 0}])
+        values = {"PORT": 8443, "WHITELIST_IP": "VAL_WHITELIST_IP"}
+        values.update({k: f"VAL_{k}" for k in t.required_inputs if k != "PORT"})
         hosts = render_hosts(t, values, 42)
         self.assertEqual(len(hosts), 1)
         self.assertEqual(hosts[0]["address"], "VAL_WHITELIST_IP")

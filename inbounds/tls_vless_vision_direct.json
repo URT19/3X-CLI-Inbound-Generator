@@ -25,18 +25,18 @@
     "note": "Port must be supplied when creating the inbound. The source default is not used."
   },
   "required_inputs": [
-    "CERT_DIRECT",
+    "CERT_DIRECT2",
     "FINGERPRINT",
-    "KEY_DIRECT",
+    "KEY_DIRECT2",
     "PORT",
-    "SUBDOMAIN_DIRECT"
+    "SUBDOMAIN_DIRECT2"
   ],
   "placeholders": [
-    "CERT_DIRECT",
+    "CERT_DIRECT2",
     "FINGERPRINT",
-    "KEY_DIRECT",
+    "KEY_DIRECT2",
     "PORT",
-    "SUBDOMAIN_DIRECT"
+    "SUBDOMAIN_DIRECT2"
   ],
   "naming": {
     "remark_default": null,
@@ -84,7 +84,7 @@
       "network": "tcp",
       "security": "tls",
       "tlsSettings": {
-        "serverName": "{{SUBDOMAIN_DIRECT}}",
+        "serverName": "{{SUBDOMAIN_DIRECT2}}",
         "minVersion": "1.2",
         "rejectUnknownSni": true,
         "certificates": [
@@ -93,8 +93,8 @@
             "oneTimeLoading": false,
             "usage": "encipherment",
             "buildChain": false,
-            "certificateFile": "{{CERT_DIRECT}}",
-            "keyFile": "{{KEY_DIRECT}}",
+            "certificateFile": "{{CERT_DIRECT2}}",
+            "keyFile": "{{KEY_DIRECT2}}",
             "useFile": true
           }
         ],

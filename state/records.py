@@ -9,7 +9,7 @@ import os
 import tempfile
 from typing import Dict, List
 
-RECORD_TYPES = ("direct", "cdn", "relay")
+RECORD_TYPES = ("direct", "cdn", "relay", "fallback")
 
 
 class RecordError(RuntimeError):
@@ -51,3 +51,27 @@ def append_record(state_dir: str, connection_type: str, record: Dict) -> None:
         if os.path.exists(tmp):
             os.remove(tmp)
         raise
+
+
+def update_record_path(state_dir: str, connection_type: str, inbound_id: int, path: str) -> bool:
+    """Change the stored path of one record (after the panel path was changed). Returns True if found."""
+    records = load_records(state_dir, connection_type)
+    changed = False
+    for record in records:
+        if record.get("inbound_id") == inbound_id:
+            record["path"] = path
+            changed = True
+    if not changed:
+        return False
+    path_file = _path(state_dir, connection_type)
+    fd, tmp = tempfile.mkstemp(dir=state_dir, prefix=f".{connection_type}-", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            json.dump(records, fh, indent=2, ensure_ascii=False)
+            fh.write("\n")
+        os.replace(tmp, path_file)
+    except OSError:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+        raise
+    return True

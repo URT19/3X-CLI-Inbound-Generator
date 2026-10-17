@@ -347,7 +347,7 @@
         "network": "tcp",
         "security": "tls",
         "tlsSettings": {
-          "serverName": "{{SUBDOMAIN_DIRECT}}",
+          "serverName": "{{SUBDOMAIN_DIRECT2}}",
           "minVersion": "1.2",
           "rejectUnknownSni": true,
           "certificates": [
@@ -356,8 +356,8 @@
               "oneTimeLoading": false,
               "usage": "encipherment",
               "buildChain": false,
-              "certificateFile": "{{CERT_DIRECT}}",
-              "keyFile": "{{KEY_DIRECT}}",
+              "certificateFile": "{{CERT_DIRECT2}}",
+              "keyFile": "{{KEY_DIRECT2}}",
               "useFile": true
             }
           ],
@@ -440,14 +440,227 @@
     }
   },
   {
-    "id": "tcp_reality_plain_direct",
-    "name": "30. VLESS Reality TCP (no Vision flow)",
-    "client_flow": "",
+    "id": "fb_vless_ws",
+    "name": "31. VLESS WS FB",
+    "content": {
+      "listen": "127.0.0.1",
+      "port": 1,
+      "protocol": "vless",
+      "tag": "in-1-tcp",
+      "settings": {
+        "decryption": "none",
+        "encryption": "none"
+      },
+      "sniffing": {
+        "enabled": false
+      },
+      "streamSettings": {
+        "network": "ws",
+        "wsSettings": {
+          "acceptProxyProtocol": false,
+          "path": "{{PATH_WS}}",
+          "host": "",
+          "headers": {},
+          "heartbeatPeriod": 30
+        },
+        "security": "none"
+      },
+      "clientStats": [],
+      "nodeId": null,
+      "fallbackParent": null
+    }
+  },
+  {
+    "id": "fb_vless_tcp",
+    "name": "32. VLESS TCP FB",
+    "content": {
+      "listen": "127.0.0.1",
+      "port": 1,
+      "protocol": "vless",
+      "tag": "in-1-tcp",
+      "settings": {
+        "decryption": "none",
+        "encryption": "none",
+        "testseed": [
+          900,
+          500,
+          900,
+          256
+        ]
+      },
+      "sniffing": {
+        "enabled": false
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "tcpSettings": {
+          "acceptProxyProtocol": false,
+          "header": {
+            "type": "none"
+          }
+        },
+        "security": "none"
+      },
+      "clientStats": [],
+      "nodeId": null,
+      "fallbackParent": null
+    }
+  },
+  {
+    "id": "fb_vless_httpupgrade",
+    "name": "33. VLESS HTTPUpgrade FB",
+    "content": {
+      "listen": "127.0.0.1",
+      "port": 1,
+      "protocol": "vless",
+      "tag": "in-1-tcp",
+      "settings": {
+        "decryption": "none",
+        "encryption": "none"
+      },
+      "sniffing": {
+        "enabled": false
+      },
+      "streamSettings": {
+        "network": "httpupgrade",
+        "httpupgradeSettings": {
+          "acceptProxyProtocol": false,
+          "path": "{{PATH_UPGRADE}}",
+          "host": "",
+          "headers": {}
+        },
+        "security": "none"
+      },
+      "clientStats": [],
+      "nodeId": null,
+      "fallbackParent": null
+    }
+  },
+  {
+    "id": "fb_trojan_ws",
+    "name": "34. Trojan WS FB",
+    "content": {
+      "listen": "127.0.0.1",
+      "port": 1,
+      "protocol": "trojan",
+      "tag": "in-1-tcp",
+      "settings": {
+        "clients": []
+      },
+      "sniffing": {
+        "enabled": false
+      },
+      "streamSettings": {
+        "network": "ws",
+        "wsSettings": {
+          "acceptProxyProtocol": false,
+          "path": "{{PATH_WS}}",
+          "host": "",
+          "headers": {},
+          "heartbeatPeriod": 30
+        },
+        "security": "none"
+      },
+      "clientStats": [],
+      "nodeId": null,
+      "fallbackParent": null
+    }
+  },
+  {
+    "id": "fb_trojan_httpupgrade",
+    "name": "35. Trojan HTTPUpgrade FB",
+    "content": {
+      "listen": "127.0.0.1",
+      "port": 1,
+      "protocol": "trojan",
+      "tag": "in-1-tcp",
+      "settings": {
+        "clients": []
+      },
+      "sniffing": {
+        "enabled": false
+      },
+      "streamSettings": {
+        "network": "httpupgrade",
+        "httpupgradeSettings": {
+          "acceptProxyProtocol": false,
+          "path": "{{PATH_UPGRADE}}",
+          "host": "",
+          "headers": {}
+        },
+        "security": "none"
+      },
+      "clientStats": [],
+      "nodeId": null,
+      "fallbackParent": null
+    }
+  },
+  {
+    "id": "tls_vmess_ws_direct",
+    "name": "36. VMess WS Direct TLS",
     "content": {
       "listen": "",
-      "port": 443,
+      "port": 1,
+      "protocol": "vmess",
+      "tag": "in-1-tcp",
+      "settings": {
+        "clients": []
+      },
+      "sniffing": {
+        "enabled": true,
+        "destOverride": [
+          "http",
+          "tls",
+          "quic"
+        ],
+        "routeOnly": false
+      },
+      "streamSettings": {
+        "network": "ws",
+        "security": "tls",
+        "tlsSettings": {
+          "serverName": "{{SUBDOMAIN_DIRECT}}",
+          "minVersion": "1.2",
+          "rejectUnknownSni": true,
+          "certificates": [
+            {
+              "ocspStapling": 3600,
+              "oneTimeLoading": false,
+              "usage": "encipherment",
+              "buildChain": false,
+              "certificateFile": "{{CERT_DIRECT}}",
+              "keyFile": "{{KEY_DIRECT}}",
+              "useFile": true
+            }
+          ],
+          "alpn": [
+            "h2"
+          ],
+          "settings": {
+            "fingerprint": "{{FINGERPRINT}}"
+          }
+        },
+        "wsSettings": {
+          "acceptProxyProtocol": false,
+          "path": "{{PATH_WS}}",
+          "host": "",
+          "headers": {},
+          "heartbeatPeriod": 30
+        }
+      },
+      "clientStats": [],
+      "nodeId": null,
+      "fallbackParent": null
+    }
+  },
+  {
+    "id": "tls_vless_grpc_direct",
+    "name": "37. VLESS gRPC Direct TLS",
+    "content": {
+      "listen": "",
+      "port": 1,
       "protocol": "vless",
-      "tag": "in-443-tcp",
+      "tag": "in-1-tcp",
       "settings": {
         "clients": [],
         "decryption": "none",
@@ -463,32 +676,94 @@
         "routeOnly": false
       },
       "streamSettings": {
-        "network": "tcp",
-        "security": "reality",
-        "tcpSettings": {
-          "header": {
-            "type": "none"
+        "network": "grpc",
+        "security": "tls",
+        "tlsSettings": {
+          "serverName": "{{SUBDOMAIN_DIRECT}}",
+          "minVersion": "1.2",
+          "rejectUnknownSni": true,
+          "certificates": [
+            {
+              "ocspStapling": 3600,
+              "oneTimeLoading": false,
+              "usage": "encipherment",
+              "buildChain": false,
+              "certificateFile": "{{CERT_DIRECT}}",
+              "keyFile": "{{KEY_DIRECT}}",
+              "useFile": true
+            }
+          ],
+          "alpn": [
+            "h2",
+            "http/1.1"
+          ],
+          "settings": {
+            "fingerprint": "{{FINGERPRINT}}"
           }
         },
-        "realitySettings": {
-          "show": false,
-          "dest": "{{REALITY_DEST}}",
-          "xver": 0,
-          "serverNames": [
-            "{{REALITY_SNI}}"
+        "grpcSettings": {
+          "serviceName": "{{PATH_GRPC}}",
+          "multiMode": false
+        }
+      },
+      "clientStats": [],
+      "nodeId": null,
+      "fallbackParent": null
+    }
+  },
+  {
+    "id": "tls_vless_httpupgrade_direct",
+    "name": "38. VLESS HTTPUpgrade Direct TLS",
+    "content": {
+      "listen": "",
+      "port": 1,
+      "protocol": "vless",
+      "tag": "in-1-tcp",
+      "settings": {
+        "clients": [],
+        "decryption": "none",
+        "fallbacks": []
+      },
+      "sniffing": {
+        "enabled": true,
+        "destOverride": [
+          "http",
+          "tls",
+          "quic"
+        ],
+        "routeOnly": false
+      },
+      "streamSettings": {
+        "network": "httpupgrade",
+        "security": "tls",
+        "tlsSettings": {
+          "serverName": "{{SUBDOMAIN_DIRECT}}",
+          "minVersion": "1.2",
+          "rejectUnknownSni": true,
+          "certificates": [
+            {
+              "ocspStapling": 3600,
+              "oneTimeLoading": false,
+              "usage": "encipherment",
+              "buildChain": false,
+              "certificateFile": "{{CERT_DIRECT}}",
+              "keyFile": "{{KEY_DIRECT}}",
+              "useFile": true
+            }
           ],
-          "privateKey": "{{REALITY_PRIVATE_KEY}}",
-          "shortIds": [
-            "{{REALITY_SHORT_ID}}"
+          "alpn": [
+            "h2",
+            "http/1.1"
           ],
-          "fingerprint": "{{FINGERPRINT}}",
-          "spiderX": "/",
           "settings": {
-            "publicKey": "{{REALITY_PUBLIC_KEY}}",
-            "fingerprint": "{{FINGERPRINT}}",
-            "serverName": "{{REALITY_SNI}}",
-            "spiderX": "/"
+            "fingerprint": "{{FINGERPRINT}}"
           }
+        },
+        "httpupgradeSettings": {
+          "acceptProxyProtocol": false,
+          "path": "{{PATH_UPGRADE}}",
+          "host": "",
+          "headers": {}
         }
       },
       "clientStats": [],

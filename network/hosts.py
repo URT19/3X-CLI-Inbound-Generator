@@ -5,7 +5,7 @@ gRPC authority) must be that IP, not the domain. TLS server names and certificat
 """
 
 import ipaddress
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 
 def is_ipv4_literal(value: str) -> bool:
@@ -43,7 +43,7 @@ def apply_ip_host(payload: Dict[str, Any], address: str) -> int:
 
 
 def direct_host_payload(inbound_id: int, remark: str, address: str, port: int,
-                        security: str, sni_domain: str) -> Dict[str, Any]:
+                        security: str, sni_domain: str, public_port: Optional[int] = None) -> Dict[str, Any]:
     """Host entry that sets the address clients use for a direct inbound.
 
     With an IP as the address, the TLS or REALITY server name (sni) stays the domain, so the
@@ -57,7 +57,7 @@ def direct_host_payload(inbound_id: int, remark: str, address: str, port: int,
         "inboundId": inbound_id,
         "remark": remark,
         "address": address,
-        "port": port,
+        "port": public_port or port,  # subscriptions show the public port (443 behind a proxy)
         "security": "same",
         "sni": sni,
         "alpn": [],

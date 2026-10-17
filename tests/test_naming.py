@@ -26,24 +26,24 @@ class NamingTests(unittest.TestCase):
     def test_known_name_format(self):
         t = self.library["tls_xhttp_cdn_vless"]
         self.assertEqual(build_name(t, []), "12-VLESS-XHTTP-CDN-TLS")
-        t = self.library["http_httpupgrade_cdn_vmess"]
-        self.assertEqual(build_name(t, []), "17-VMESS-HTTPUP-CDN-PLAIN")
+        t = self.library["tls_ws_cdn_vmess"]
+        self.assertEqual(build_name(t, []), "14-VMESS-WS-CDN-TLS")
 
     def test_collision_adds_suffix(self):
-        t = self.library["tls_ws_cdn"]
+        t = self.library["tls_ws_cdn_vmess"]
         base = build_name(t, [])
         self.assertEqual(build_name(t, [base]), base + "-2")
         self.assertEqual(build_name(t, [base, base + "-2"]), base + "-3")
 
     def test_suffix_never_exceeds_limit(self):
-        t = self.library["http_httpupgrade_cdn_vmess"]
-        base = build_name(t, [])  # 30 characters
+        t = self.library["tls_httpupgrade_cdn_vless"]
+        base = build_name(t, [])
         taken = [base] + [f"{base}-{n}" for n in range(2, 10)]
         with self.assertRaises(NamingError):
             build_name(t, taken, max_length=len(base) + 1)
 
     def test_too_long_base_refused(self):
-        t = self.library["tls_ws_cdn"]
+        t = self.library["tls_ws_cdn_vmess"]
         with self.assertRaises(NamingError):
             build_name(t, [], max_length=5)
 

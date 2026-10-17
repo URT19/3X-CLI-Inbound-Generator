@@ -131,7 +131,7 @@ class InboundWriteMixin:
         Verified by reading the inbound back and finding the client email."""
         if not email:
             raise PanelError("Client email is required")
-        if protocol == "vless":
+        if protocol in ("vless", "vmess"):
             client = {"id": credential, "flow": flow}
         elif protocol == "trojan":
             client = {"password": credential, "flow": flow}
@@ -156,6 +156,41 @@ class InboundWriteMixin:
         if not any(c.get("email") == email for c in clients):
             raise VerificationFailed("Client not found on the inbound after add")
         return {"dry_run": False, "inbound_id": inbound_id, "email": email, "verified": True}
+
+    def add_ip_host(
+        self,
+        inbound_ids: List[int],
+        address: str,
+        remark: str = "IP",
+        confirmed: bool = False,
+        dry_run: bool = False,
+    ) -> Dict[str, Any]:
+        """Create one host group named remark with address, attached to every inbound in inbound_ids.
+        Port 0 and an empty sni leave the port and server name to each inbound. Verified by reading
+        /hosts/byInbound for the first inbound."""
+        if not inbound_ids:
+            raise PanelError("No inbound to attach the host to")
+        if not address:
+            raise PanelError("Host address is empty")
+        group = {
+            "inboundIds": list(inbound_ids),
+            "hosts": [address],
+            "port": 0,
+            "remark": remark,
+            "security": "same",
+            "sni": "",
+            "alpn": [],
+            "sortOrder": 0,
+        }
+        preview = {"method": "POST", "path": "/panel/api/hosts/add", "body": group}
+        if dry_run:
+            return {"dry_run": True, **preview}
+        _require_confirmed(confirmed, "Adding the IP host")
+        self._post_envelope(preview["path"], group)
+        after = self.list_host_groups(inbound_ids[0])
+        if not any(g.get("remark") == remark and address in (g.get("hosts") or []) for g in after):
+            raise VerificationFailed("IP host not found after add")
+        return {"dry_run": False, "address": address, "inbound_count": len(inbound_ids), "verified": True}
 
     def list_host_groups(self, inbound_id: int) -> List[Dict[str, Any]]:
         obj = self._envelope(f"/panel/api/hosts/byInbound/{inbound_id}")
@@ -250,9 +285,16 @@ class InboundWriteMixin:
         payload: Dict[str, Any],
         confirmed: bool = False,
         dry_run: bool = False,
+        public_hub: bool = False,
     ) -> Dict[str, Any]:
-        """Create an inbound. Returns the request preview when dry_run=True."""
-        _validate_port(payload.get("port"))
+        """Create an inbound. Returns the request preview when dry_run=True.
+        public_hub=True is used only for the public entry inbound (port 443, VLESS TCP TLS with fallbacks)."""
+        if public_hub:
+            port = payload.get("port")
+            if not isinstance(port, int) or not 1 <= port <= 65535:
+                raise PanelError("Hub port must be between 1 and 65535")
+        else:
+            _validate_port(payload.get("port"))
         if not payload.get("remark"):
             raise PanelError("remark is required")
         existing = self.list_inbounds()

@@ -42,11 +42,11 @@ class ListInboundsTests(unittest.TestCase):
 
     def test_list_respects_web_base_path(self):
         transport = FakeTransport([ok([])])
-        client = PanelClient("https://1.2.3.4:443/mysecret", token="T", transport=transport)
+        client = PanelClient("https://203.0.113.4:443/mysecret", token="T", transport=transport)
         client.list_inbounds()
         self.assertEqual(
             transport.calls[0]["url"],
-            "https://1.2.3.4:443/mysecret/panel/api/inbounds/list",
+            "https://203.0.113.4:443/mysecret/panel/api/inbounds/list",
         )
 
     def test_success_false_raises_response_error_with_panel_message(self):

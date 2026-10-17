@@ -21,6 +21,8 @@ class FakePanel:
 
     def __call__(self, method, url, headers, body, ssl_context):
         path = url.split("/panel/api", 1)[1]
+        if method == "GET" and path == "/server/getDb":
+            return 200, {}, b"SQLite format 3\x00fake-database"
         if method == "GET" and path.endswith("/fallbacks") and path.startswith("/inbounds/"):
             iid = int(path.split("/")[2])
             return 200, {}, self._env(self.fallbacks.get(iid, []))

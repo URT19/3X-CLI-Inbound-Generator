@@ -80,7 +80,7 @@ class RelayFlowTests(unittest.TestCase):
         self.library = load_library(os.path.join(ROOT, "inbounds"))
         self.settings = Settings(network=NetworkSettings(
             relay_address="198.51.100.7", direct_ip="203.0.113.10",
-            port_mode="random", random_port_low=20000, random_port_high=20010),
+            port_mode="random", random_port_low=20000, random_port_high=22000),
             paths=generate_all())
 
     def tearDown(self):
@@ -92,14 +92,12 @@ class RelayFlowTests(unittest.TestCase):
                         key=lambda t: (t.number, t.template_id))
         idx = next(i for i, t in enumerate(direct, 1) if t.template_id == "http_tcp_direct_vmess")
         panel = FakePanel()
-        inputs = iter(["7", str(idx), "", "", "0"])
+        inputs = iter(["4", "4", str(idx), "", "", "0", "0"])
         Menu(PanelClient("127.0.0.1:2053", token="T", transport=panel),
              input_fn=lambda p="": next(inputs), output_fn=lambda t: None,
              library=self.library, settings=self.settings, cloudflare=CF, state_dir=self.state).run()
         self.assertIn("RELAY", panel.inbounds[0]["remark"])
-        self.assertEqual(len(panel.hosts), 1)
-        self.assertEqual(panel.hosts[0]["hosts"][0], "198.51.100.7")
-        self.assertEqual(panel.hosts[0]["inboundIds"][0], panel.inbounds[0]["id"])
+        self.assertEqual(panel.hosts, [])  # no host entries are created by this tool
         records = load_records(self.state, "relay")
         self.assertEqual(len(records), 1)
         self.assertEqual(records[0]["address"], "198.51.100.7")

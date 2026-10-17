@@ -32,12 +32,12 @@ class ValidatorTests(unittest.TestCase):
         self.assertFalse(is_valid_domain("localhost"))
         self.assertFalse(is_valid_domain("bad_domain.com"))
         self.assertFalse(is_valid_domain("-bad.com"))
-        self.assertFalse(is_valid_domain("1.2.3.4"))
+        self.assertFalse(is_valid_domain("203.0.113.4"))
         self.assertFalse(is_valid_domain(""))
 
     def test_ips(self):
-        self.assertEqual(parse_ip(" 1.2.3.4 "), "1.2.3.4")
-        self.assertEqual(parse_ip_list("1.1.1.1, 2.2.2.2"), ["1.1.1.1", "2.2.2.2"])
+        self.assertEqual(parse_ip(" 203.0.113.4 "), "203.0.113.4")
+        self.assertEqual(parse_ip_list("1.1.1.1, 203.0.113.5"), ["1.1.1.1", "203.0.113.5"])
         with self.assertRaises(ValueError):
             parse_ip("999.1.1.1")
         with self.assertRaises(ValueError):

@@ -22,7 +22,7 @@ def make_project(root):
     os.makedirs(os.path.join(root, "config"), exist_ok=True)
     shutil.copy(os.path.join(ROOT, "config", "cloudflare_ports.json"), os.path.join(root, "config"))
     save_settings(os.path.join(root, "config", "settings.json"),
-                  Settings(panel_address="1.2.3.4:2053", api_token="SECRET_TOKEN_1234"))
+                  Settings(panel_address="203.0.113.4:2053", api_token="SECRET_TOKEN_1234"))
     append_record(os.path.join(root, "state", "local_inbounds"), "direct",
                   {"inbound_id": 1, "name": "02-VMESS-TCP-DIRECT-TLS", "port": 9000})
 
@@ -165,28 +165,28 @@ class MenuBackupTests(unittest.TestCase):
         return "\n".join(out)
 
     def test_menu_backup_creates_archive_in_backups_folder(self):
-        text = self.run_menu(["13", "1", "0", "0"])
+        text = self.run_menu(["10", "1", "0", "0"])
         self.assertIn("Backup written", text)
         self.assertTrue(any(f.endswith(".tar.gz") for f in os.listdir(os.path.join(self.root, "backups"))))
         self.assertIn("API token", text)
 
     def test_menu_restore_requires_confirm(self):
-        self.run_menu(["13", "1", "0", "0"])
+        self.run_menu(["10", "1", "0", "0"])
         archive = os.path.join(self.root, "backups", os.listdir(os.path.join(self.root, "backups"))[0])
-        text = self.run_menu(["13", "2", archive, "no", "0", "0"])
+        text = self.run_menu(["10", "2", archive, "no", "0", "0"])
         self.assertIn("Cancelled", text)
 
     def test_menu_restore_with_confirm_reloads(self):
-        self.run_menu(["13", "1", "0", "0"])
+        self.run_menu(["10", "1", "0", "0"])
         archive = os.path.join(self.root, "backups", os.listdir(os.path.join(self.root, "backups"))[0])
-        text = self.run_menu(["13", "2", archive, CONFIRM_WORD, "0", "0"])
+        text = self.run_menu(["10", "2", archive, CONFIRM_WORD, "0", "0"])
         self.assertIn("Restored", text)
 
     def test_menu_restore_bad_file_reported(self):
         bogus = os.path.join(self.root, "not-a-backup.tar.gz")
         with open(bogus, "w") as fh:
             fh.write("junk")
-        text = self.run_menu(["13", "2", bogus, "0", "0"])
+        text = self.run_menu(["10", "2", bogus, "0", "0"])
         self.assertIn("valid backup archive", text)
 
 
@@ -211,6 +211,15 @@ class PrereqTests(unittest.TestCase):
         plan = install_plan(items, apt_available=True)
         self.assertEqual(plan, ["apt-get", "install", "-y", "openssl", "curl"])
         self.assertIsNone(install_plan(items, apt_available=False))
+
+    def test_haproxy_and_nginx_are_checked_and_installable(self):
+        items = check_prerequisites("/x", which=lambda n: None, python_version=(3, 12))
+        by = {i.name: i for i in items}
+        self.assertFalse(by["haproxy"].ok)
+        self.assertFalse(by["nginx"].ok)
+        self.assertFalse(by["haproxy"].required)
+        plan = install_plan([by["haproxy"], by["nginx"]], apt_available=True)
+        self.assertEqual(plan, ["apt-get", "install", "-y", "haproxy", "nginx"])
 
     def test_ubuntu_detection(self):
         with tempfile.NamedTemporaryFile("w", delete=False) as fh:

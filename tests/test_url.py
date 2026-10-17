@@ -18,8 +18,8 @@ class NormalizeBaseUrlTests(unittest.TestCase):
 
     def test_web_base_path_is_kept_and_trailing_slash_removed(self):
         self.assertEqual(
-            normalize_base_url("https://1.2.3.4:443/mysecret/"),
-            "https://1.2.3.4:443/mysecret",
+            normalize_base_url("https://203.0.113.4:443/mysecret/"),
+            "https://203.0.113.4:443/mysecret",
         )
 
     def test_ipv6_with_port_443(self):

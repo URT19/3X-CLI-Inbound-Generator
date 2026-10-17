@@ -25,7 +25,7 @@ from certs.checker import CertStatus, check_domain_cert, default_runner, Runner
 from config.settings import DEFAULT_CERT_ROOT
 from network.cloudflare import CloudflarePorts
 from network.fingerprint import DEFAULT_FINGERPRINT, PRESETS, validate_fingerprint
-from network.paths import PATH_KEYS, PATH_LABELS, TEMPLATE_PATH_KEYS, path_key, random_path, validate_path
+from network.paths import PATH_KEYS, PATH_LABELS, TEMPLATE_PATH_KEYS, path_key, random_path, random_secret, validate_path
 from network.ports import PortError, check_port
 from network.validators import is_loopback_or_private, parse_ip, parse_ip_list, parse_port, is_valid_domain
 from panel.client import PanelClient
@@ -33,22 +33,26 @@ from panel.errors import PanelError
 from panel.writes import ConfirmationRequired
 from core.preflight import ip_compatible, resolve_values, validate_payload
 from state.inventory import compare
-from core.prereq import check_prerequisites, install_plan, ubuntu_info
+from core.prereq import INSTALLABLE, check_prerequisites, install_plan, ubuntu_info
 from state.export import build_inventory, export_inventory
 from state.reports import summarize as summarize_report
 from config.protocols import PROTOCOL_TAG, load_protocol_catalog
 import time
 from network.validators import connection_address, parse_fake_destination, parse_ip, resolve_ipv4
-from network.hosts import apply_ip_host, direct_host_payload, is_ipv4_literal
+from network.hosts import apply_ip_host, is_ipv4_literal
+from certs.checker import cert_paths
 import copy
+import uuid
 from network.reality import DEFAULT_TARGETS, RealityError, validate_dest, validate_sni
 from network.amnezia import ALL_KEYS, BOOL_KEYS, INT_KEYS, AmneziaError, apply_to_payload as apply_amnezia_to_payload, generate_proposal, validate as validate_amnezia
 from panel.writes import eligible_fallback_master
 from utils.backup import BackupError, create_backup, restore_backup, summarize
 from config.version import APP_VERSION as _APP_VERSION
-from state.records import RECORD_TYPES, RecordError, append_record, load_records
-from templates.loader import TemplateError, render, render_hosts
+from state.records import RECORD_TYPES, RecordError, append_record, load_records, update_record_path
+from templates.loader import TemplateError, render
 from network.fingerprint import apply_fingerprint
+from network.xhttp_matrix import BASE_ID as XHTTP_BASE_ID, MatrixError, build_variants
+from network.cdn import CDN_ECH_CONFIG, CDN_FINALMASK, CdnError, apply_cdn_options, missing_options
 from ui.style import Style
 from utils.naming import NamingError, build_name, validate_custom_name
 
@@ -60,18 +64,25 @@ MAIN_ITEMS: List[Tuple[str, str]] = [
     ("1", "Check and install prerequisites"),
     ("2", "Panel connection"),
     ("3", "Network and connection settings"),
-    ("4", "Generate DIRECT Inbounds"),
-    ("5", "Generate CDN Inbounds"),
-    ("6", "Generate FAKE SITE Inbounds"),
-    ("7", "Generate RELAY Inbounds"),
-    ("8", "SSL certificate management"),
-    ("9", "Manage panel inbounds"),
-    ("10", "Create inbound from template"),
-    ("11", "Export inbound inventory (JSON and YAML)"),
-    ("12", "Reports and statistics"),
-    ("13", "Backup and restore"),
+    ("4", "Generate Inbounds"),
+    ("5", "SSL certificate management"),
+    ("6", "Manage panel inbounds"),
+    ("7", "Create inbound from template"),
+    ("8", "Export inbound inventory (JSON and YAML)"),
+    ("9", "Reports and statistics"),
+    ("10", "Backup and restore"),
     ("0", "Exit"),
 ]
+GENERATE_ITEMS: List[Tuple[str, str]] = [
+    ("1", "DIRECT"),
+    ("2", "CDN"),
+    ("3", "FAKE SITE"),
+    ("4", "RELAY"),
+    ("5", "Generate Fallback Proxies"),
+    ("6", "CDN test: XHTTP matrix (random ports)"),
+    ("0", "Back"),
+]
+NGINX_XUI_CONF = "/etc/nginx/conf.d/xui-manager.conf"
 CONNECTION_ITEMS: List[Tuple[str, str]] = [
     ("1", "Check connection"),
     ("2", "Edit address and token"),
@@ -85,7 +96,9 @@ PANEL_ITEMS: List[Tuple[str, str]] = [
     ("5", "Enable or disable inbound"),
     ("6", "Delete inbound"),
     ("7", "Compare local records with panel (read-only)"),
-    ("8", "Repair addresses of managed inbounds (host entries, IP Host headers)"),
+    ("8", "Make every request path on the panel unique (repairs shared paths)"),
+    ("9", "Listen on 127.0.0.1 for ALL inbounds (for nginx or haproxy; read the warning)"),
+    ("10", "Restore listen address of managed inbounds (all addresses)"),
     ("0", "Back"),
 ]
 NETWORK_ITEMS: List[Tuple[str, str]] = [
@@ -101,6 +114,8 @@ NETWORK_ITEMS: List[Tuple[str, str]] = [
     ("10", "Relay: use IP instead of domain for the relay address (on/off)"),
     ("11", "Relay address (Iran server domain or IP)"),
     ("12", "AmneziaWG parameters (proposal, confirm or edit)"),
+
+    ("14", "Direct domain 2 (address for VLESS TCP TLS Vision)"),
     ("0", "Back"),
 ]
 SSL_ITEMS: List[Tuple[str, str]] = [
@@ -165,7 +180,9 @@ class Menu:
         self._acme_bin = acme_bin
         self.settings = settings
         self.settings_path = settings_path
-        self._input = input_fn
+        self._raw_input = input_fn
+        # Every prompt waits for an answer, so every prompt is shown in yellow.
+        self._input = lambda prompt="": self._raw_input(self.style.question(prompt))
         self._out = output_fn
         self._secret = secret_fn or input_fn
         self._read_file = read_file or (lambda p: open(p, encoding="utf-8").read())
@@ -304,7 +321,9 @@ class Menu:
             "5": self.set_enable,
             "6": self.delete_inbound,
             "7": self.compare_records,
-            "8": self.repair_addresses,
+            "8": self.make_paths_unique,
+            "9": self.listen_local_all,
+            "10": lambda: self.set_listen_for_managed(local=False),
         })
 
     # ---- connection -----------------------------------------------------
@@ -369,6 +388,8 @@ class Menu:
             "10": self.toggle_use_ip,
             "11": self.set_relay_address,
             "12": self.amnezia_menu,
+
+            "14": self.set_direct_domain2,
         })
 
     def _network(self) -> NetworkSettings:
@@ -424,6 +445,76 @@ class Menu:
             return
         if self._save_settings_fields(amnezia=params):
             self._out(self.style.ok("AmneziaWG parameters saved to settings.json."))
+
+    def set_direct_domain2(self) -> None:
+        domain = self._input("Direct domain 2 (for example vision.example.com): ").strip().lower()
+        if not is_valid_domain(domain):
+            self._fail("Not a valid domain name.")
+            return
+        if self._save_network(replace(self._network(), direct_domain2=domain)):
+            self._offer_ssl(domain)
+
+    def _inbound_path_fields(self, stream: Dict[str, Any]) -> List[Tuple[str, str, str]]:
+        """(section, key, value) for every request path stored in a stream (path or gRPC service)."""
+        found = []
+        for section, key in (("wsSettings", "path"), ("xhttpSettings", "path"),
+                             ("httpupgradeSettings", "path"), ("grpcSettings", "serviceName")):
+            value = (stream.get(section) or {}).get(key)
+            if value:
+                found.append((section, key, str(value)))
+        return found
+
+    def make_paths_unique(self) -> None:
+        """Give every inbound on the panel its own path. Shared paths are replaced with new random ones;
+        the change is applied to the panel and to the local records. One confirmation."""
+        if not self._need_client():
+            return
+        try:
+            rows = self.client.list_inbounds()
+        except PanelError as exc:
+            self._fail(f"Cannot read the panel: {exc}")
+            return
+        seen = set()
+        plan = []  # (inbound id, remark, section, key, old, new)
+        for row in rows:
+            stream = row.get("streamSettings") or {}
+            if isinstance(stream, str):
+                try:
+                    stream = json.loads(stream or "{}")
+                except ValueError:
+                    stream = {}
+            for section, key, value in self._inbound_path_fields(stream):
+                if value in seen:
+                    plan.append((row["id"], row.get("remark"), section, key, value, random_path()))
+                else:
+                    seen.add(value)
+        if not plan:
+            self._out(self.style.ok("Every request path on the panel is already unique."))
+            return
+        self._out(self.style.heading(f"Paths to change: {len(plan)}"))
+        for inbound_id, remark, section, key, old, new in plan:
+            self._out(f"  [{inbound_id}] {remark}: {section}.{key} {old} -> {new}")
+        if not self._confirm("Change these paths on the panel and in the local records"):
+            self._out(self.style.muted("Cancelled. Nothing was changed."))
+            return
+        done = 0
+        for inbound_id, remark, section, key, old, new in plan:
+            try:
+                inbound = copy.deepcopy(self.client.get_inbound(inbound_id))
+                stream = inbound.get("streamSettings") or {}
+                if isinstance(stream, str):
+                    stream = json.loads(stream or "{}")
+                    inbound["streamSettings"] = stream
+                stream[section][key] = new
+                self.client.update_inbound(inbound_id, inbound, confirmed=True)
+                if self._state_dir:
+                    for kind in ("direct", "cdn", "relay"):
+                        update_record_path(self._state_dir, kind, inbound_id, new)
+                done += 1
+                self._out(self.style.ok(f"  [{inbound_id}] {remark}: path changed"))
+            except (PanelError, RecordError, KeyError) as exc:
+                self._fail(f"  [{inbound_id}] {remark}: {exc}")
+        self._out(self.style.ok(f"Done: {done} of {len(plan)}. Restart Xray and generate the proxy files again."))
 
     def toggle_use_ip(self) -> None:
         current = self._network().use_ip_addresses
@@ -869,28 +960,65 @@ class Menu:
 
     def _prepare(self, template, state: Dict[str, list], relay: bool = False,
                  connection_address: Optional[str] = None) -> Tuple[Optional["Prepared"], List[str]]:
+        extra_warnings: List[str] = []
+        if "SUBDOMAIN_DIRECT2" in json.dumps(template.content):
+            # VLESS TCP TLS Vision uses the second direct domain as its address (no address question).
+            connection_address = self._network().direct_domain2 or connection_address
+        if template.security == "reality" and getattr(self, "_reality", None):
+            used_sni = state.setdefault("reality_sni", {})
+            chosen = dict(self._reality)
+            if chosen["sni"] in used_sni:
+                replacement = next((d for d in DEFAULT_TARGETS
+                                    if d[2] not in used_sni and d[2] not in state.get("reality_taken", [])), None)
+                if replacement is None or chosen.get("custom"):
+                    return None, [f"REALITY server name {chosen['sni']} is already used by "
+                                  f"{used_sni.get(chosen['sni'])}; choose another target"]
+                chosen = {"dest": replacement[1], "sni": replacement[2]}
+                extra_warnings.append(f"Server name {self._reality['sni']} is in use; "
+                                      f"{template.name} uses {chosen['sni']} instead.")
+            state.setdefault("reality_taken", []).append(chosen["sni"])
+            self._reality_for_template = chosen
+        else:
+            self._reality_for_template = getattr(self, "_reality", None)
         """Resolve, render and check one template. state['existing'] and state['in_use'] are
         updated so that later templates in the same batch do not reuse a name or port."""
+        network = self._network()
+        if getattr(self, "_force_random_ports", False):
+            network = replace(network, port_mode="random")  # test matrix: random ports, set by hand later
         resolution = resolve_values(
-            template, self._network(), (self.settings.paths if self.settings else {}),
+            template, network, (self.settings.paths if self.settings else {}),
             self._cert_root(), self.cloudflare, state["in_use"], status_fn=self._status_fn(),
             amnezia=(self.settings.amnezia if self.settings else None),
             connection_address=connection_address,
             cdn_via=getattr(self, "_cdn_via", "cloudflare"),
-            reality=getattr(self, "_reality", None),
+            reality=getattr(self, "_reality_for_template", None),
             fingerprint=(self.settings.fingerprint if self.settings else DEFAULT_FINGERPRINT),
         )
         if resolution.problems:
             return None, resolution.problems
+        # Every inbound needs its own path, because the proxy routes by path. A path already used by
+        # another inbound is replaced with a new random one, and the change is reported.
+        # Every inbound gets its own new random path (the settings value is only a default and is never shared).
+        used = state.setdefault("paths", [])
+        for key in [k for k in resolution.values if k.startswith("PATH_")]:
+            new_path = random_path()
+            while new_path in used:
+                new_path = random_path()
+            resolution.values[key] = new_path
+            used.append(new_path)
         try:
-            remark = build_name(template, state["existing"], mode_label="RELAY" if relay else None)
+            remark = build_name(template, state["existing"],
+                                mode_label="RELAY" if relay else template.extra.get("name_label"))
             payload = render(template, resolution.values, remark=remark)
             if template.protocol == "amneziawg":
                 apply_amnezia_to_payload(payload, self.settings.amnezia if self.settings else {})
             if (template.connection_mode == "direct" and connection_address
                     and is_ipv4_literal(connection_address) and connection_address != "127.0.0.1"):
                 apply_ip_host(payload, connection_address)  # direct over an IP: Host header is the IP
-        except (NamingError, TemplateError, AmneziaError) as exc:
+            options = getattr(self, "_cdn_options", None)
+            if template.connection_mode == "cdn" and options:
+                apply_cdn_options(payload, ech=options["ech"], finalmask=options["finalmask"])
+        except (NamingError, TemplateError, AmneziaError, CdnError) as exc:
             return None, [str(exc)]
         fingerprint = self.settings.fingerprint if self.settings else DEFAULT_FINGERPRINT
         apply_fingerprint(payload, fingerprint)
@@ -899,19 +1027,63 @@ class Menu:
             return None, problems
         state["existing"].append(payload["remark"])
         state["in_use"].append(payload["port"])
+        if template.security == "reality":
+            state.setdefault("reality_sni", {})[resolution.values["REALITY_SNI"]] = payload["remark"]
         return Prepared(template, payload, resolution.values, fingerprint, address=connection_address,
-                        warnings=list(resolution.warnings)), []
+                        warnings=extra_warnings + list(resolution.warnings)), []
 
     def _load_state(self) -> Optional[Dict[str, list]]:
         try:
-            rows = self.client.list_inbounds_slim()
+            rows = self.client.list_inbounds()
         except PanelError as exc:
             self._fail(f"Refused: cannot read the panel inbound list ({exc}).")
             return None
         return {
+            "ids": [r.get("id") for r in rows],
             "existing": [r.get("remark") or "" for r in rows],
             "in_use": [r.get("port") for r in rows if isinstance(r.get("port"), int)],
+            "paths": self._panel_paths(rows),
+            "reality_sni": self._panel_reality_names(rows),
         }
+
+    def _panel_reality_names(self, rows) -> Dict[str, str]:
+        """REALITY server name -> inbound remark, for inbounds on the panel. HAProxy routes by SNI, so each
+        REALITY inbound needs its own server name."""
+        found: Dict[str, str] = {}
+        for row in rows:
+            stream = row.get("streamSettings") or {}
+            if isinstance(stream, str):
+                try:
+                    stream = json.loads(stream or "{}")
+                except ValueError:
+                    stream = {}
+            if stream.get("security") != "reality":
+                continue
+            for name in (stream.get("realitySettings") or {}).get("serverNames") or []:
+                found[name] = str(row.get("remark") or row.get("id"))
+        return found
+
+    def _panel_paths(self, rows) -> List[str]:
+        """Request paths already used by inbounds on the panel (path-based networks)."""
+        found: List[str] = []
+        for row in rows:
+            stream = row.get("streamSettings") or {}
+            if isinstance(stream, str):
+                try:
+                    stream = json.loads(stream or "{}")
+                except ValueError:
+                    stream = {}
+            for key in ("wsSettings", "xhttpSettings", "httpupgradeSettings", "tcpSettings"):
+                value = stream.get(key) or {}
+                path = value.get("path") or ((value.get("header") or {}).get("request") or {}).get("path")
+                if isinstance(path, list):
+                    path = path[0] if path else ""
+                if path:
+                    found.append(str(path))
+            service = (stream.get("grpcSettings") or {}).get("serviceName")
+            if service:
+                found.append(str(service))
+        return found
 
     def _choose_direct_address(self) -> Optional[str]:
         """Ask once per run which address DIRECT configs use. Returns None if the user stops."""
@@ -949,29 +1121,48 @@ class Menu:
         return None
 
     def _choose_cdn_ip(self) -> Optional[str]:
-        """CDN route, three options: Cloudflare with a domain, Cloudflare with an IP, or local.
-        Returns the address used for the CDN configs."""
-        net = self._network()
-        self._out(self.style.heading("CDN route"))
-        self._out(f"  1) through Cloudflare, domain name  ({net.cdn_domain or 'not set'})")
-        self._out("  2) through Cloudflare, IP address  (choose one of the Cloudflare IPs)")
-        self._out(f"  3) local, HAProxy or Nginx  ({net.local_ip or '127.0.0.1'})")
-        self._out(self.style.muted("  Cloudflare routes: ports from Cloudflare's list, never 80 or 443."))
-        route = self._input("Choose 1, 2 or 3 [1]: ").strip() or "1"
-        if route == "3":
-            self._cdn_via = "local"
-            return net.local_ip or "127.0.0.1"
-        if route == "1":
-            if not net.cdn_domain:
-                self._fail("CDN domain is not set (menu 3, item 5).")
-                return None
-            self._cdn_via = "cloudflare"
-            return net.cdn_domain
-        if route != "2":
-            self._fail("Expected 1, 2 or 3.")
-            return None
+        """CDN address: a Cloudflare domain (SSL is checked) or a Cloudflare IP. Returns the address
+        used for the CDN configs. CDN configs always go through Cloudflare, never a local route."""
         self._cdn_via = "cloudflare"
-        return self._choose_cloudflare_ip()
+        self._out(self.style.heading("CDN address"))
+        self._out("  1) Cloudflare domain")
+        self._out("  2) Cloudflare IP")
+        route = self._input("Use a domain or an IP? Choose 1 or 2 [1]: ").strip() or "1"
+        if route == "2":
+            return self._choose_cloudflare_ip()
+        if route != "1":
+            self._fail("Expected 1 or 2.")
+            return None
+        return self._choose_cdn_domain()
+
+    def _choose_cdn_domain(self) -> Optional[str]:
+        """Use the CDN domain already registered, or enter another one. Then check its SSL."""
+        current = self._network().cdn_domain
+        if current:
+            self._out(f"  CDN domain registered: {current}")
+            domain = current if self._ask_yes(f"Use {current} for the CDN configs?") else self._ask_cdn_domain()
+        else:
+            self._out("  No CDN domain is registered yet.")
+            domain = self._ask_cdn_domain()
+        if not domain:
+            return None
+        if domain != current and not self._save_network(replace(self._network(), cdn_domain=domain)):
+            return None
+        self._offer_ssl(domain)
+        return domain
+
+    def _ask_cdn_domain(self) -> Optional[str]:
+        domain = self._input("CDN domain behind Cloudflare (for example cdn.example.com): ").strip().lower()
+        if not is_valid_domain(domain):
+            self._fail("Not a valid domain name.")
+            return None
+        return domain
+
+    def _ask_cdn_options(self) -> Dict[str, Any]:
+        """Two optional questions for CDN configs: the ECH config list and the finalmask fragment."""
+        ech = self._ask_yes(f"Add ECH config list ({CDN_ECH_CONFIG}) to the CDN configs?")  # Enter = yes
+        mask = self._ask_yes_default_no("Set finalmask (TCP fragment) on the CDN configs?")
+        return {"ech": ech, "finalmask": copy.deepcopy(CDN_FINALMASK) if mask else None}
 
     def _choose_reality_target(self) -> Optional[Dict[str, str]]:
         """REALITY target: a default site from the list, or a custom dest and SNI (last item)."""
@@ -985,13 +1176,14 @@ class Menu:
         if not raw.isdigit() or not 1 <= int(raw) <= custom:
             self._fail("Invalid choice.")
             return None
-        if int(raw) == custom:
+        is_custom = int(raw) == custom
+        if is_custom:
             dest_text = self._input("  Target (host:443): ")
             sni_text = self._input("  Server name (SNI): ")
         else:
             _label, dest_text, sni_text = DEFAULT_TARGETS[int(raw) - 1]
         try:
-            return {"dest": validate_dest(dest_text), "sni": validate_sni(sni_text)}
+            return {"dest": validate_dest(dest_text), "sni": validate_sni(sni_text), "custom": is_custom}
         except RealityError as exc:
             self._fail(str(exc))
             return None
@@ -1038,12 +1230,15 @@ class Menu:
         # 1) Ask the address question first (DIRECT and CDN only).
         connection_address = None
         self._cdn_via = "cloudflare"
+        self._cdn_options = None
         if direct_address:
             connection_address = self._choose_direct_address()
         elif cdn_address:
             connection_address = self._choose_cdn_ip()
         if (direct_address or cdn_address) and connection_address is None:
             return
+        if cdn_address:
+            self._cdn_options = self._ask_cdn_options()
         # 2) Clear the screen, then show the configs.
         self._reality = None
         if direct_address or cdn_address:
@@ -1059,12 +1254,13 @@ class Menu:
             )
         self._out(f"  {'a':>2}) all {len(ordered)} templates above")
         # 3) Then the next question.
-        raw = self._input("Template number, or a for all: ").strip().lower()
+        raw = (self._input("Template number, or a for all [a]: ").strip().lower() or "a")
         state = self._load_state()
         if state is None:
             return
         if raw == "a":
-            self._create_all(ordered, state, relay, connection_address)
+            created = self._create_all(ordered, state, relay, connection_address)
+            self._finish_host(connection_address, created, cdn=cdn_address)
             return
         try:
             choice = int(raw)
@@ -1078,7 +1274,8 @@ class Menu:
         if chosen.deprecated:
             self._out(self.style.warn(
                 f"Deprecated: {chosen.deprecated['reason']}. Use instead: {chosen.deprecated['replace']}."))
-        self._create_one(chosen, state, relay, connection_address)
+        created = self._create_one(chosen, state, relay, connection_address)
+        self._finish_host(connection_address, created, cdn=cdn_address)
 
     def _ensure_reality(self, templates) -> bool:
         """Ask for the REALITY target only when a chosen template needs it. Returns False to stop."""
@@ -1088,105 +1285,167 @@ class Menu:
             self._reality = self._choose_reality_target()
         return self._reality is not None
 
-    def _create_one(self, template, state, relay: bool = False, connection_address: Optional[str] = None) -> None:
-        if not self._ensure_reality([template]):
+    # ---- service model: one inbound per protocol, transport and mode; each config is a client ----
+
+    def _vmess_consent(self, templates) -> List:
+        """VMess over TCP with TLS is deprecated and conflicts with VLESS on the same domain.
+        It is created only after an explicit yes (default no)."""
+        kept = []
+        for t in templates:
+            if t.protocol == "vmess" and t.transport == "tcp" and t.security == "tls":
+                if self._ask_yes_default_no(f"{t.name} is deprecated and shares its domain with VLESS. Create it?"):
+                    kept.append(t)
+                else:
+                    self._out(self.style.muted(f"  skipped {t.name} (not created)."))
+            else:
+                kept.append(t)
+        return kept
+
+    def _ask_yes_default_no(self, question: str) -> bool:
+        return self._input(f"{question} [y/N]: ").strip().lower() in ("y", "yes")
+
+    def _verify_cdn_options(self, inbound_id: int) -> None:
+        """Read the inbound back and say whether the panel kept the ECH config list and finalmask."""
+        options = getattr(self, "_cdn_options", None)
+        if not options or not (options["ech"] or options["finalmask"]):
             return
+        try:
+            stored = self.client.get_inbound(inbound_id)
+        except PanelError as exc:
+            self._fail(f"Could not read inbound {inbound_id} back to check ECH and finalmask: {exc}")
+            return
+        missing = missing_options(stored, options["ech"], options["finalmask"])
+        if missing:
+            self._fail(f"Inbound {inbound_id}: the panel did not keep {', '.join(missing)}.")
+        else:
+            self._out(self.style.ok(f"Inbound {inbound_id}: ECH and finalmask are stored on the panel."))
+
+    def xhttp_matrix(self) -> None:
+        """Create every XHTTP variant of the CDN template on random ports, for hand testing behind Cloudflare."""
+        base = self._library.get(XHTTP_BASE_ID) if self._library else None
+        if base is None:
+            self._fail(f"Template {XHTTP_BASE_ID} is not loaded.")
+            return
+        if not self._need_client():
+            return
+        try:
+            variants = build_variants(base)
+        except MatrixError as exc:
+            self._fail(str(exc))
+            return
+        self._cdn_via = "local"
+        self._cdn_options = None
+        address = self._choose_cdn_ip()
+        if address is None:
+            return
+        self._cdn_options = self._ask_cdn_options()
+        self._out(self.style.heading("XHTTP test matrix"))
+        for variant in variants:
+            self._out(f"  {variant.extra['code']:<10} {variant.extra['note']}")
+        self._out(self.style.muted("  Ports are random and never Cloudflare ports. Set each one on Cloudflare by hand."))
+        state = self._load_state()
+        if state is None:
+            return
+        self._cdn_via = "local"  # random non-Cloudflare ports; _choose_cdn_ip set it to cloudflare
+        self._force_random_ports = True
+        try:
+            created = self._create_all(variants, state, False, address)
+        finally:
+            self._force_random_ports = False
+            self._cdn_via = "cloudflare"
+        if not created:
+            return
+        self._finish_cdn_host(address, created)
+        self._out(self.style.heading("Created (name, port)"))
+        for inbound_id in created:
+            try:
+                row = self.client.get_inbound(inbound_id)
+                self._out(f"  {row.get('remark', '?'):<34} port {row.get('port', '?')}")
+            except PanelError as exc:
+                self._fail(f"  id {inbound_id}: {exc}")
+
+    def _finish_host(self, address: Optional[str], inbound_ids: List[int], cdn: bool = False) -> None:
+        if cdn:
+            self._finish_cdn_host(address, inbound_ids)
+        else:
+            self._finish_ip_host(address, inbound_ids)
+
+    def _finish_cdn_host(self, address: Optional[str], inbound_ids: List[int]) -> None:
+        """CDN mode: one host named CDN with the chosen IP or domain, attached to every CDN inbound of this run."""
+        if not address or not inbound_ids:
+            return
+        try:
+            result = self.client.add_ip_host(inbound_ids, address, remark="CDN", confirmed=True)
+            self._out(self.style.ok(f"Host CDN created: {address} attached to {len(inbound_ids)} inbounds "
+                                    f"(verified: {result.get('verified')})."))
+        except PanelError as exc:
+            self._fail(f"Host CDN failed: {exc}. The inbounds exist without the host.")
+
+    def _finish_ip_host(self, address: Optional[str], inbound_ids: List[int]) -> None:
+        """IP mode: one host named IP with the confirmed address, attached to every inbound created in this run."""
+        if not address or not inbound_ids or not is_ipv4_literal(address) or address == "127.0.0.1":
+            return
+        try:
+            result = self.client.add_ip_host(inbound_ids, address, remark="IP", confirmed=True)
+            self._out(self.style.ok(f"Host IP created: {address} attached to {len(inbound_ids)} inbounds "
+                                    f"(verified: {result.get('verified')})."))
+        except PanelError as exc:
+            self._fail(f"Host IP failed: {exc}. The inbounds exist without the host.")
+
+    def _create_one(self, template, state, relay: bool = False, connection_address: Optional[str] = None) -> List[int]:
+        if not self._ensure_reality([template]):
+            return []
+        if not self._vmess_consent([template]):
+            return []
         prep, problems = self._prepare(template, state, relay, connection_address)
         if problems:
             self._fail("Refused before sending. Missing or invalid parameters:")
             for problem in problems:
                 self._fail(f"  - {problem}")
-            return
+            return []
+        for warning in prep.warnings:
+            self._out(self.style.warn(warning))
         self._out(self.style.heading("Parameters"))
         self._out(f"  name:        {prep.payload['remark']}")
         self._out(f"  port:        {prep.payload['port']}")
+        self._out(f"  listen:      {prep.payload.get('listen') or 'all addresses'}")
         self._out(f"  protocol:    {prep.payload['protocol']} / {prep.template.transport} / {prep.template.security}")
-        self._out(f"  fingerprint: {prep.fingerprint}")
+        stream = prep.payload.get("streamSettings") or {}
+        if prep.template.connection_mode == "cdn":
+            ech = (stream.get("tlsSettings", {}).get("settings", {}) or {}).get("echConfigList") or "not set"
+            self._out(f"  ECH config:  {ech}")
+            self._out(f"  finalmask:   {'fragment' if stream.get('finalmask') else 'not set'}")
         for key in sorted(prep.values):
-            if key in ("PORT", "WHITELIST_IP", "HY_PASSWORD"):
+            if key in ("PORT", "WHITELIST_IP", "HY_PASSWORD", "FINGERPRINT") or key.startswith("AWG_"):
                 continue
-            if key.startswith("PATH_"):
-                transport = TEMPLATE_PATH_KEYS.get(key, "")
-                used = path_key(prep.template.connection_mode, transport)
-                self._out(f"  {key:<17} {prep.values[key]}   <- settings key {used}")
-            elif key.startswith("AWG_"):
-                continue
-            else:
-                self._out(f"  {key:<17} {prep.values[key]}")
+            self._out(f"  {key:<17} {prep.values[key]}")
         result = self._run_write(
             lambda: self.client.add_inbound(prep.payload, dry_run=True),
             lambda: self.client.add_inbound(prep.payload, confirmed=True),
             f"add inbound {prep.payload['remark']} on port {prep.payload['port']}",
         )
         if result is None:
-            return
+            return []
         self._save_local_record(prep.template, prep.payload, result["id"], prep.values, prep.fingerprint, relay,
                                 address=prep.address)
-        if relay:
-            self._add_relay_host(prep.payload, result["id"])
-        elif prep.template.external_proxies:
-            self._add_template_hosts(prep.template, prep.values, result["id"])
-        else:
-            self._add_direct_host(prep, result["id"])
+        if prep.template.connection_mode == "cdn":
+            self._verify_cdn_options(result["id"])
+        return [result["id"]]
 
-    def _direct_host_for(self, prep: "Prepared", inbound_id: int) -> Optional[Dict[str, Any]]:
-        """Host entry carrying the chosen direct address (domain, resolved IP, or 127.0.0.1).
-        Templates that already have external proxy entries carry their own address and are skipped."""
-        if prep.template.connection_mode != "direct" or not prep.address or prep.template.external_proxies:
-            return None
-        sni_domain = (prep.values.get("REALITY_SNI") or prep.values.get("SUBDOMAIN_DIRECT")
-                      or self._network().direct_domain or "")
-        return direct_host_payload(inbound_id, prep.payload["remark"], prep.address,
-                                   prep.payload["port"], prep.template.security, sni_domain)
-
-    def _add_direct_host(self, prep: "Prepared", inbound_id: int, confirmed_batch: bool = False) -> None:
-        host = self._direct_host_for(prep, inbound_id)
-        if host is None:
-            return
-        try:
-            done = self.client.add_host(host, confirmed=True)
-            self._out(self.style.ok(f"Host entry for {prep.payload['remark']}: address {host['address']}"
-                                    f" (verified, id {done.get('id')})"))
-        except PanelError as exc:
-            self._fail(f"Host entry for {prep.payload['remark']} failed: {exc}")
-
-    def _add_relay_host(self, payload, inbound_id: int) -> None:
-        """A relay inbound is served under the relay address. Create one host entry for it."""
-        net = self._network()
-        host = {
-            "inboundId": inbound_id,
-            "remark": payload["remark"],
-            "address": connection_address(net.relay_address, net.use_ip_addresses),
-            "port": payload["port"],
-            "security": "same",
-            "sni": "",
-            "alpn": [],
-            "sortOrder": 0,
-        }
-        try:
-            result = self.client.add_host(host, dry_run=True)
-            self._out(self.style.heading("Relay host entry (preview)"))
-            self._out(json.dumps(result, ensure_ascii=False, indent=2, default=str))
-        except PanelError as exc:
-            self._fail(f"Relay host preview failed: {exc}")
-            return
-        if not self._confirm("Create the relay host entry for this inbound"):
-            self._out(self.style.muted("Relay host entry cancelled. The inbound exists without it."))
-            return
-        try:
-            done = self.client.add_host(host, confirmed=True)
-            self._out(self.style.ok(f"Relay host done and verified: {done}"))
-        except PanelError as exc:
-            self._fail(f"Relay host failed: {exc}")
-
-    def _create_all(self, templates, state, relay: bool = False, connection_address: Optional[str] = None) -> None:
+    def _create_all(self, templates, state, relay: bool = False, connection_address: Optional[str] = None) -> List[int]:
         deprecated_count = sum(1 for t in templates if t.deprecated)
         if deprecated_count:
             self._out(self.style.warn(
                 f"{deprecated_count} of these use Xray-deprecated features; they are included as requested."))
         if not self._ensure_reality(templates):
-            return
-        prepared: List[Prepared] = []
+            return []
+        if any(t.protocol == "vmess" and t.transport == "tcp" and t.security == "tls" for t in templates):
+            keep_vmess = self._ask_yes_default_no(
+                "The batch includes VMess TCP TLS (deprecated, shares its domain with VLESS). Include it?")
+            if not keep_vmess:
+                templates = [t for t in templates
+                             if not (t.protocol == "vmess" and t.transport == "tcp" and t.security == "tls")]
+        prepared: List[Any] = []
         skipped: List[str] = []
         for template in templates:
             prep, problems = self._prepare(template, state, relay, connection_address)
@@ -1195,6 +1454,10 @@ class Menu:
             else:
                 prepared.append(prep)
         self._out(self.style.heading(f"Ready: {len(prepared)} of {len(templates)}"))
+        options = getattr(self, "_cdn_options", None)
+        if options:
+            self._out(f"  ECH config list: {CDN_ECH_CONFIG if options['ech'] else 'not set'}; "
+                      f"finalmask: {'fragment' if options['finalmask'] else 'not set'}")
         for prep in prepared:
             self._out(f"  {prep.payload['remark']:<32} port {prep.payload['port']}")
         warnings = [w for prep in prepared for w in prep.warnings]
@@ -1203,36 +1466,28 @@ class Menu:
         for line in skipped:
             self._out(self.style.error(f"  skipped - {line}"))
         if not prepared:
-            return
-        if not self._confirm(f"Create {len(prepared)} inbounds (and their host entries) on the panel"):
+            return []
+        if not self._confirm(f"Create {len(prepared)} inbounds on the panel"):
             self._out(self.style.muted("Cancelled. Nothing was sent to the panel."))
-            return
-        created = 0
+            return []
+        created: List[int] = []
         for prep in prepared:
             try:
                 result = self.client.add_inbound(prep.payload, confirmed=True)
+                self._save_local_record(prep.template, prep.payload, result["id"], prep.values,
+                                        prep.fingerprint, relay, address=prep.address)
+                self._out(self.style.ok(f"Created {prep.payload['remark']} (id {result['id']})"))
+                if prep.template.connection_mode == "cdn":
+                    self._verify_cdn_options(result["id"])
+                created.append(result["id"])
             except PanelError as exc:
-                self._fail(f"Stopped at {prep.payload['remark']}: {exc}. {created} created before this.")
-                return
-            created += 1
-            self._out(self.style.ok(f"Created {prep.payload['remark']} (id {result['id']})"))
-            self._save_local_record(prep.template, prep.payload, result["id"], prep.values, prep.fingerprint, relay,
-                                    address=prep.address)
-            if relay:
-                self._add_relay_host(prep.payload, result["id"])
-                continue
-            if not prep.template.external_proxies:
-                self._add_direct_host(prep, result["id"])
-                continue
-            for host in (render_hosts(prep.template, prep.values, result["id"]) if prep.template.external_proxies else []):
-                try:
-                    self.client.add_host(host, confirmed=True)
-                except PanelError as exc:
-                    self._fail(f"Host for {prep.payload['remark']} failed: {exc}")
-        self._out(self.style.ok(f"Done: {created} inbounds created and verified."))
+                self._fail(f"Stopped at {prep.payload['remark']}: {exc}. {len(created)} done before this.")
+                return created
+        self._out(self.style.ok(f"Done: {len(created)} of {len(prepared)} inbounds created and verified."))
+        return created
 
     def _save_local_record(self, template, payload, inbound_id, values, fingerprint, relay: bool = False,
-                           address: Optional[str] = None) -> None:
+                           address: Optional[str] = None, config: Optional[str] = None) -> None:
         record_type = "relay" if relay else template.connection_mode
         if record_type not in RECORD_TYPES:
             return
@@ -1241,7 +1496,9 @@ class Menu:
             return
         net = self._network()
         domain = net.cdn_domain if template.connection_mode == "cdn" else net.direct_domain
-        if "SUBDOMAIN_CDN" not in values and "SUBDOMAIN_DIRECT" not in values:
+        if "SUBDOMAIN_DIRECT2" in values:
+            domain = values["SUBDOMAIN_DIRECT2"]
+        if "SUBDOMAIN_CDN" not in values and "SUBDOMAIN_DIRECT" not in values and "SUBDOMAIN_DIRECT2" not in values:
             domain = None  # IP-based direct inbound
         if relay:
             address = connection_address(net.relay_address, net.use_ip_addresses)
@@ -1267,8 +1524,9 @@ class Menu:
             "domain": domain,
             "address": address,
             "path": path_values[0] if path_values else None,
-            "cert_fullchain": values.get(f"CERT_{suffix}"),
-            "cert_privkey": values.get(f"KEY_{suffix}"),
+            "cert_fullchain": values.get(f"CERT_{suffix}") or values.get("CERT_DIRECT2"),
+            "cert_privkey": values.get(f"KEY_{suffix}") or values.get("KEY_DIRECT2"),
+            "config": config,
             "fingerprint": fingerprint,
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
@@ -1293,26 +1551,6 @@ class Menu:
             self._out(self.style.ok(f"Local record saved to {record_type}.json."))
         except RecordError as exc:
             self._out(self.style.error(f"Inbound created, but the local record failed: {exc}"))
-
-    def _add_template_hosts(self, template, values, inbound_id: int) -> None:
-        """Create the template's host entries for the new inbound, after its own confirmation."""
-        try:
-            hosts = render_hosts(template, values, inbound_id)
-        except TemplateError as exc:
-            self._out(self.style.error(f"Inbound created, but host entries were not built: {exc}"))
-            return
-        previews = [self.client.add_host(h, dry_run=True) for h in hosts]
-        self._out(json.dumps(previews, ensure_ascii=False, indent=2, default=str))
-        if not self._confirm(f"About to add {len(hosts)} host entr(y/ies) for inbound id {inbound_id}"):
-            self._out(self.style.muted("Host entries cancelled. The inbound exists without them."))
-            return
-        for index, host in enumerate(hosts, start=1):
-            try:
-                result = self.client.add_host(host, confirmed=True)
-            except PanelError as exc:
-                self._out(self.style.error(f"Host {index} failed: {exc}. Earlier host entries were kept."))
-                return
-            self._out(self.style.ok(f"Host {index} done and verified: {result}"))
 
     # ---- fake site ------------------------------------------------------
 
@@ -1420,7 +1658,7 @@ class Menu:
             self._out(self.style.ok(line) if item.ok else self.style.warn(line))
         system = ubuntu_info()
         self._out(self.style.muted(f"  system: {system[1]}"))
-        missing = [i for i in items if not i.ok and i.name in ("openssl", "curl")]
+        missing = [i for i in items if not i.ok and i.name in INSTALLABLE]
         if not missing:
             self._out(self.style.ok("Nothing to install from the apt list."))
             return
@@ -1440,7 +1678,7 @@ class Menu:
             self._fail(f"Install failed (exit {rc}).")
             return
         again = check_prerequisites(self._acme_bin)
-        still = [i.name for i in again if not i.ok and i.name in ("openssl", "curl")]
+        still = [i.name for i in again if not i.ok and i.name in INSTALLABLE]
         if still:
             self._fail("Still missing after install: " + ", ".join(still))
         else:
@@ -1509,71 +1747,121 @@ class Menu:
     def _not_implemented(self, key: str) -> None:
         self._out(self.style.warn(f"{MAIN_LABELS[key]}: not implemented yet."))
 
-    def repair_addresses(self) -> None:
-        """Make existing managed inbounds match their saved address: host entries, and the Host
-        header of direct inbounds that use an IP. Shows the plan, then one confirmation."""
+    def set_listen_for_managed(self, local: bool) -> None:
+        """Set the listen address of managed inbounds (created by this tool) to 127.0.0.1, or back to all
+        addresses. Ports stay as they are. Client-facing host entries are not changed. One confirmation."""
         if not self._need_client():
             return
         if not self._state_dir:
             self._fail("No state directory set.")
             return
+        target = "127.0.0.1" if local else ""
         try:
             rows = self.client.list_inbounds()
-            local = {t: load_records(self._state_dir, t) for t in ("direct", "cdn")}
+            records = [r for t in ("direct", "cdn", "relay") for r in load_records(self._state_dir, t)]
         except (PanelError, RecordError) as exc:
             self._fail(f"Cannot read the panel or records: {exc}")
             return
         by_id = {r.get("id"): r for r in rows}
-        plan = []  # (description, callable)
-        for kind, records in local.items():
-            for rec in records:
-                rid, addr = rec.get("inbound_id"), rec.get("address")
-                row = by_id.get(rid)
-                if not addr or row is None or row.get("remark") != rec.get("name"):
-                    continue
-                groups = self.client.list_host_groups(rid)
-                if not groups and kind == "direct":
-                    host = direct_host_payload(rid, rec["name"], addr, rec["port"], rec.get("security") or "none",
-                                               self._network().direct_domain or "")
-                    plan.append((f"{rec['name']}: add host entry address {addr}",
-                                 lambda h=host: self.client.add_host(h, confirmed=True)))
-                want_sni = ""
-                if kind == "direct" and rec.get("security") == "reality":
-                    want_sni = rec.get("reality_sni") or ""
-                elif kind == "direct" and is_ipv4_literal(addr) and rec.get("security") == "tls":
-                    want_sni = rec.get("domain") or self._network().direct_domain or ""
-                for group in groups:
-                    address_ok = any(h == addr or h.startswith(f"{addr}:") for h in (group.get("hosts") or []))
-                    sni_ok = not want_sni or group.get("sni") == want_sni
-                    if not address_ok or not sni_ok:
-                        plan.append((f"{rec['name']}: host address -> {addr}"
-                                     + (f", sni -> {want_sni}" if want_sni else ""),
-                                     lambda g=group, a=addr, s=want_sni: self.client.update_host_address(
-                                         g, a, confirmed=True, sni=(s if s else None))))
-                if kind == "direct" and is_ipv4_literal(addr) and addr != "127.0.0.1":
-                    inbound = self.client.get_inbound(rid)
-                    fixed = copy.deepcopy(inbound)
-                    if apply_ip_host(fixed, addr):
-                        plan.append((f"{rec['name']}: Host header -> {addr}",
-                                     lambda f=fixed: self.client.update_inbound(f["id"], f, confirmed=True)))
+        plan = []
+        for rec in records:
+            row = by_id.get(rec.get("inbound_id"))
+            if row is None or row.get("remark") != rec.get("name"):
+                continue
+            inbound = self.client.get_inbound(row["id"])
+            if (inbound.get("listen") or "") == target:
+                continue
+            plan.append((row["id"], rec["name"], inbound))
+        label = "127.0.0.1" if local else "all addresses"
         if not plan:
-            self._out(self.style.ok("Nothing to repair: every managed inbound matches its saved address."))
+            self._out(self.style.ok(f"Nothing to change: managed inbounds already listen on {label}."))
             return
-        self._out(self.style.heading(f"Planned repairs ({len(plan)})"))
-        for description, _apply in plan:
-            self._out(f"  - {description}")
-        if not self._confirm("Apply these repairs on the panel"):
+        self._out(self.style.heading(f"Planned listen changes to {label} ({len(plan)})"))
+        for inbound_id, name, _inbound in plan:
+            self._out(f"  - [{inbound_id}] {name}")
+        self._out(self.style.muted("Ports and host entries stay the same."))
+        if not self._confirm(f"Set the listen address of these inbounds to {label}"):
             self._out(self.style.muted("Cancelled. Nothing was changed."))
             return
         done = 0
-        for description, apply in plan:
+        for inbound_id, name, inbound in plan:
+            payload = copy.deepcopy(inbound)
+            payload["listen"] = target
             try:
-                apply()
+                self.client.update_inbound(inbound_id, payload, confirmed=True)
+                check = self.client.get_inbound(inbound_id)
+                if (check.get("listen") or "") != target:
+                    raise PanelError("listen address was not changed on the panel")
                 done += 1
-                self._out(self.style.ok(f"  done: {description}"))
+                self._out(self.style.ok(f"  done: {name} -> {label}"))
             except PanelError as exc:
-                self._fail(f"  failed: {description}: {exc}")
-        self._out(self.style.ok(f"Repairs finished: {done} of {len(plan)}."))
+                self._fail(f"  failed: {name}: {exc}")
+        self._out(self.style.ok(f"Listen changes finished: {done} of {len(plan)}."))
+
+    def _red_warning(self, lines: List[str]) -> None:
+        bar = "!" * 70
+        self._out(self.style.error(bar))
+        for line in lines:
+            self._out(self.style.error(f"!!  {line}"))
+        self._out(self.style.error(bar))
+
+    def listen_local_all(self) -> None:
+        """Set listen = 127.0.0.1 on every inbound on the panel (for a front proxy such as nginx or haproxy)."""
+        if not self._need_client():
+            return
+        try:
+            rows = self.client.list_inbounds()
+        except PanelError as exc:
+            self._fail(f"Cannot read the panel: {exc}")
+            return
+        targets = [r for r in rows if (r.get("listen") or "") != "127.0.0.1"]
+        self._red_warning([
+            "THIS CHANGES EVERY INBOUND ON THE PANEL.",
+            "All inbounds will listen on 127.0.0.1 only. This is for connections through nginx.",
+            "If nginx is NOT configured to forward to these ports, ALL connections will be cut.",
+            "Xray must be restarted after the change.",
+        ])
+        self._out(f"Inbounds that will change: {len(targets)} of {len(rows)}")
+        if not targets:
+            self._out(self.style.ok("Every inbound already listens on 127.0.0.1. Nothing to do."))
+            return
+        self._out(self.style.heading("Backup first"))
+        self._out("  Make a backup of the panel before continuing.")
+        if self._ask_yes("Download a panel database backup now through the API?"):
+            try:
+                data = self.client.download_database()
+            except PanelError as exc:
+                self._fail(f"Backup failed: {exc}. Make the backup from the panel instead.")
+                return
+            if not self._root:
+                self._fail("No project directory set; the backup was not saved.")
+                return
+            folder = os.path.join(self._root, "backups")
+            os.makedirs(folder, exist_ok=True)
+            path = os.path.join(folder, f"panel-db-{time.strftime('%Y%m%d-%H%M%S')}.db")
+            fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "wb") as fh:
+                fh.write(data)
+            self._out(self.style.ok(f"Panel database saved (private, mode 600): {path}"))
+        else:
+            self._out(self.style.warn("No backup was taken here. Make one from the panel before typing CONFIRM."))
+        self._out(self.style.error("Type CONFIRM in capital letters to change every inbound to 127.0.0.1."))
+        answer = self._input(self.style.error("CONFIRM > ")).strip()
+        if answer != "CONFIRM":
+            self._out(self.style.muted("Not confirmed. Nothing was changed."))
+            return
+        done = 0
+        for row in targets:
+            try:
+                inbound = self.client.get_inbound(row["id"])
+                changed = copy.deepcopy(inbound)
+                changed["listen"] = "127.0.0.1"
+                self.client.update_inbound(changed["id"], changed, confirmed=True)
+                done += 1
+                self._out(self.style.ok(f"  [{row['id']}] {row.get('remark')}: listen 127.0.0.1"))
+            except PanelError as exc:
+                self._fail(f"  [{row['id']}] {row.get('remark')}: {exc}")
+        self._out(self.style.warn(f"Done: {done} of {len(targets)}. Restart Xray and check nginx now."))
 
     def _session_check(self) -> None:
         """At start-up, when a panel is configured, check the connection once and show the result in the header."""
@@ -1585,6 +1873,16 @@ class Menu:
         except PanelError as exc:
             self._last_check = ("fail", str(exc))
 
+    def generate_menu(self) -> None:
+        self._submenu("Generate Inbounds", GENERATE_ITEMS, {
+            "1": lambda: self.add_from_template(mode="direct", title="DIRECT inbounds", direct_address=True),
+            "2": lambda: self.add_from_template(mode="cdn", title="CDN inbounds", cdn_address=True),
+            "3": self.fake_site,
+            "4": lambda: self.add_from_template(mode="direct", title="RELAY inbounds", relay=True),
+            "5": lambda: self.add_from_template(mode="fallback", title="FALLBACK proxies (listen 127.0.0.1)"),
+            "6": self.xhttp_matrix,
+        })
+
     def run(self) -> None:
         if self._auto_check:
             self._session_check()
@@ -1592,16 +1890,14 @@ class Menu:
             "1": self.prereq_menu,
             "2": self.connection_menu,
             "3": self.network_menu,
-            "4": lambda: self.add_from_template(mode="direct", title="DIRECT inbounds", direct_address=True),
-            "5": lambda: self.add_from_template(mode="cdn", title="CDN inbounds", cdn_address=True),
-            "6": self.fake_site,
-            "7": lambda: self.add_from_template(mode="direct", title="RELAY inbounds", relay=True),
-            "8": self.ssl_menu,
-            "9": self.panel_menu,
-            "10": lambda: self.add_from_template(),
-            "11": self.export_inventory,
-            "12": self.reports,
-            "13": self.backup_menu,
+            "4": self.generate_menu,
+            "5": self.ssl_menu,
+            "6": self.panel_menu,
+            "7": lambda: self.add_from_template(),
+            "8": self.export_inventory,
+            "9": self.reports,
+            "10": self.backup_menu,
+
         }
         for key in NOT_IMPLEMENTED:
             handlers[key] = (lambda k: (lambda: self._not_implemented(k)))(key)

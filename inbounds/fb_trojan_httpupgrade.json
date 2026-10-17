@@ -1,22 +1,22 @@
 {
-  "template_id": "http_httpupgrade_cdn_vless",
-  "number": 16,
+  "template_id": "fb_trojan_httpupgrade",
+  "number": 35,
   "client_flow": "",
   "deprecated": {
     "reason": "httpupgrade transport is deprecated in Xray-core",
     "replace": "XHTTP (H2 and H3)"
   },
-  "name": "16. VLESS HTTPUpgrade Plain CDN (No TLS)",
+  "name": "35. Trojan HTTPUpgrade FB",
   "template_version": "1.1.0",
   "source": {
     "repo": "https://github.com/URT19/3x-ui-generator",
     "commit": "46439c4",
     "file": "templates.js",
-    "source_content_id": 20,
-    "source_port": 8080
+    "source_content_id": null,
+    "source_port": 1
   },
-  "connection_mode": "cdn",
-  "protocol": "vless",
+  "connection_mode": "fallback",
+  "protocol": "trojan",
   "transport": "httpupgrade",
   "security": "plain",
   "port": {
@@ -29,18 +29,14 @@
   },
   "required_inputs": [
     "PATH_UPGRADE",
-    "PORT",
-    "SUBDOMAIN_CDN",
-    "WHITELIST_IP"
+    "PORT"
   ],
   "placeholders": [
     "PATH_UPGRADE",
-    "PORT",
-    "SUBDOMAIN_CDN",
-    "WHITELIST_IP"
+    "PORT"
   ],
   "naming": {
-    "remark_default": "16- http httpupgrade CDN vless",
+    "remark_default": null,
     "tag_pattern": "in-{PORT}-tcp"
   },
   "validation": {
@@ -61,51 +57,30 @@
       "vmess"
     ]
   },
-  "external_proxies": [
-    {
-      "remark": "imported 1",
-      "address": "{{WHITELIST_IP}}",
-      "port": 8080,
-      "security": "same",
-      "sni": "",
-      "alpn": [],
-      "sortOrder": 0
-    }
-  ],
+  "external_proxies": [],
   "content": {
-    "remark": "16- http httpupgrade CDN vless",
-    "enable": true,
-    "expiryTime": 0,
-    "trafficReset": "never",
-    "listen": "",
+    "listen": "127.0.0.1",
     "port": "{{PORT}}",
-    "protocol": "vless",
+    "protocol": "trojan",
+    "tag": "in-{{PORT}}-tcp",
     "settings": {
-      "clients": [],
-      "decryption": "none",
-      "encryption": "none"
+      "clients": []
+    },
+    "sniffing": {
+      "enabled": false
     },
     "streamSettings": {
       "network": "httpupgrade",
       "httpupgradeSettings": {
         "acceptProxyProtocol": false,
         "path": "{{PATH_UPGRADE}}",
-        "host": "{{SUBDOMAIN_CDN}}",
+        "host": "",
         "headers": {}
       },
       "security": "none"
     },
-    "tag": "in-{{PORT}}-tcp",
-    "sniffing": {
-      "enabled": true,
-      "destOverride": [
-        "http",
-        "tls",
-        "quic",
-        "fakedns"
-      ]
-    },
     "nodeId": null,
-    "fallbackParent": null
+    "fallbackParent": null,
+    "enable": true
   }
 }

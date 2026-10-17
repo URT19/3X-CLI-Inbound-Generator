@@ -1,6 +1,37 @@
-# 3x-ui Inbound Manager  v1.19.0
+# 3x-ui Inbound Manager  v1.33.1
 
-Terminal manager for the 3x-ui panel (v3.9.0 and later), connected with an admin API token.
+Interactive terminal manager for the Sanaei 3x-ui panel (v3.9.0 and later, checked against v3.10.0). It creates
+DIRECT, CDN (behind Cloudflare), relay, fake-site and fallback inbounds from JSON templates, checks and requests
+SSL certificates, and exports an inventory. Every change to the panel is previewed and confirmed first.
+
+## Requirements
+
+- Ubuntu (other Linux systems work for everything except the package installer in menu 1)
+- Python 3.10 or newer, standard library only (no `pip install`)
+- `openssl` (certificate checks and key generation)
+- Optional: `curl`, `acme.sh` (certificate issuing)
+- A 3x-ui admin API token
+
+## Install and test
+
+    git clone <your repository url>
+    cd xui_manager
+    python3 main.py
+    python3 -m unittest discover -s tests -t .      # 330 tests, no panel needed
+    pip install pyyaml                              # optional, only enables the YAML export tests
+
+## Important notes
+
+- Not affiliated with 3x-ui. Use at your own risk: test on a panel you can restore first (menu 10 makes a backup).
+- Your API token is stored in plain text in `config/settings.json` (mode 0600). That file, `state/`, `exports/`
+  and `backups/` are listed in `.gitignore`. Never commit or share them.
+- The Cloudflare port list in `config/cloudflare_ports.json` can go out of date. Check it against Cloudflare's docs.
+
+## Credits
+
+Panel: https://github.com/MHSanaei/3x-ui. The default inbound templates were derived from
+https://github.com/URT19/3x-ui-generator (see "Inbound library"). That repository showed no license when this
+project was prepared; see the note under "Inbound library" before redistributing.
 
 ## Run
 
@@ -51,19 +82,22 @@ Requirements and limits:
 
 ## Menu
 
-    1  Check and install prerequisites        check Python, openssl, curl, acme.sh; apt install after CONFIRM
-    2  Panel connection                        check, edit address and token
-    3  Network and connection settings         Cloudflare IPs, domains, ports, local address, paths, fingerprint, AmneziaWG, relay
-    4  Generate DIRECT Inbounds                asks the address first: domain, resolved IP, or 127.0.0.1
-    5  Generate CDN Inbounds                   asks which Cloudflare IP to use, then lists CDN templates ("a" creates all)
-    6  Generate FAKE SITE Inbounds             one address set as a fallback on a VLESS/Trojan TLS or REALITY master
-    7  Generate RELAY Inbounds                 direct templates; the relay address replaces the connection address
-    8  SSL certificate management              check or issue per domain, stored status
-    9  Manage panel inbounds                   list, details, add, update, enable, delete, compare with local records
-    10 Create inbound from template            all template types
-    11 Export inbound inventory                JSON and YAML files with names, ports, addresses and paths
-    12 Reports and statistics                  counts from the panel and local records, protocol support
-    13 Backup and restore                      archive of templates, settings and local records
+    1  Check and install prerequisites
+    2  Panel connection
+    3  Network and connection settings
+    4  Generate Inbounds
+         1) DIRECT
+         2) CDN
+         3) FAKE SITE
+         4) RELAY
+         5) Generate Fallback Proxies (plain WS, TCP, HTTPUpgrade on 127.0.0.1, FB in the name)
+         0) Back
+    5  SSL certificate management
+    6  Manage panel inbounds (list, details, add, update, enable, delete, compare, repair paths, listen 127.0.0.1)
+    7  Create inbound from template
+    8  Export inbound inventory (JSON and YAML)
+    9  Reports and statistics
+    10 Backup and restore
     0  Exit
 
 ## Address choices (menus 4 and 5)
@@ -74,23 +108,33 @@ then the next question (template number or "a") is asked.
 - DIRECT (menu 4), asked once before any template is chosen:
   1) the direct domain name, 2) the IPv4 resolved from the direct domain (you confirm, or type another address),
   3) 127.0.0.1. The chosen address is stored in the local record (address field).
-- CDN (menu 5): first the route is chosen, from three options.
-  1) Through Cloudflare, domain name: the CDN domain (menu 3, item 5) is the address.
-  2) Through Cloudflare, IP address: one of the Cloudflare IPs from menu 3, item 2 is the address. The port is taken
-     from Cloudflare's proxied ports, never 80 or 443: TLS inbounds use the HTTPS list (2053, 2083, 2087, 2096, 8443),
-     plain inbounds use the HTTP list (8080, 8880, 2052, 2082, 2086, 2095). Each inbound gets a different port.
-     The list has only five usable HTTPS ports. 8443 is used first. When no Cloudflare port is left, the inbound is
-     created on a random non-Cloudflare port and a warning says to change it to a Cloudflare port later.
-  3) Local (HAProxy or Nginx): the address is the local IP from menu 3, item 7. Ports are not restricted.
-  Routes 1 and 2 use Cloudflare's port list, never 80 or 443.
-  The SNI and host header are always the CDN domain. The direct domain is never used as a CDN address.
+- CDN (menu 5): TLS only. There are no plain (non-TLS) CDN templates. Questions, in order:
+  1) Domain or IP? Domain: the CDN domain already registered (menu 3, item 5) is shown and you choose to use it or
+     type another one (the new one is saved as the CDN domain). The SSL certificate is then checked; if it is
+     missing, invalid or due for renewal, you are asked whether to obtain it. IP: one of the Cloudflare IPs from
+     menu 3, item 2.
+  2) Add the ECH config list `cloudflare-ech.com+udp://1.1.1.1` (tlsSettings.settings.echConfigList)? Default yes.
+  3) Set finalmask (TCP fragment, two fragment entries, see network/cdn.py)? Default no. Applied as
+     streamSettings.finalmask.
+  4) Template number, or a for all (default a).
+  ALPN is `http/1.1`, except VLESS gRPC and both xHTTP templates (`h2` only; hand tests showed xHTTP never
+  worked behind Cloudflare with `http/1.1` alone, and noSSEHeader broke it). All 13 Cipher Suites are set. Reject Unknown SNI is off on
+  HTTPUpgrade, gRPC and VMess WS. The packet-up xHTTP keeps up to 100 buffered POSTs. The transport Host header and SNI are the CDN domain.
+  Only six CDN templates exist, each with a fixed port (menu 3 port settings are not used for them):
+  VLESS WS TLS 8443, VLESS HTTPUpgrade TLS 2053, VLESS xHTTP TLS (packet-up) 2083, VLESS gRPC TLS 2087,
+  VMess WS TLS 2096, and VLESS xHTTP stream-up TLS 44300. Port 44300 is an origin port, not a Cloudflare port:
+  add a Cloudflare origin rule that sends a Cloudflare port to it, and use that Cloudflare port in the host.
+  A port already used on the panel is refused, not replaced. The templates are generated by
+  `tools/build_cdn_templates.py` from the matching TLS direct templates.
+  After the inbounds are created, ONE host named CDN is created with the chosen domain or IP and attached to
+  every CDN inbound of that run.
 
-## Host entries (panel v3.10.0)
-
-The panel stores hosts as host groups. A host entry is sent to POST /panel/api/hosts/add as a group
-(inboundIds, hosts, port, remark, security, sni, alpn, sortOrder). It is verified by reading
-/panel/api/hosts/byInbound/{id}. Earlier versions of this tool sent a single host object, which the
-panel refused with "request body failed validation".
+- CDN test (menu 4, item 6): XHTTP matrix. Builds 15 variants of the CDN xHTTP template on random ports (TLS ports
+  end with 3, never Cloudflare ports, menu 3 fixed port ignored): mode (auto, packet-up, stream-up, stream-one) x ALPN
+  (http/1.1, h2, h2 + http/1.1), packet-up with noSSEHeader on h1 and h2, and a minimal variant (path, host, mode only).
+  Names look like `51-VLESS-XHTTP-XT-PU-H1-TLS` (XT = test, PU = packet-up, H1 = http/1.1; AU auto, SU stream-up,
+  SO stream-one, H2 h2, H12 both, NS noSSEHeader, MIN minimal). It asks the same address, ECH and finalmask questions,
+  creates one CDN host, and prints name and port of every inbound. Set each port on Cloudflare by hand to test.
 
 ## Request paths (menu 3, item 8)
 
@@ -103,7 +147,7 @@ Each path key is "<mode>_<transport>", for example direct_ws and cdn_ws, which a
 Keys: direct_ws, direct_xhttp, direct_grpc, direct_httpupgrade, direct_tcp, the same five for cdn, and
 vmess, vless, trojan. Settings saved before this version used the old keys and must be regenerated in menu 3, item 8.
 
-## Enabled inbounds and IP host headers
+## Enabled inbounds and IP Host headers (inbound settings)
 
 Every created inbound starts enabled (enable: true), so none needs manual enabling in the panel.
 For DIRECT inbounds created over an IP address (option 2, or a typed IP), the transport Host header
@@ -111,7 +155,7 @@ For DIRECT inbounds created over an IP address (option 2, or a typed IP), the tr
 and the certificate stay the domain. For option 3 (127.0.0.1) the Host headers keep the domain.
 CDN inbounds keep the CDN domain as Host, because Cloudflare routes by it.
 
-## REALITY: four modes, a client, and the server name
+## REALITY: four modes and the server name
 
 Four REALITY templates, following the reference outbound (VLESS, REALITY, serverName = the REALITY target SNI,
 publicKey, shortId, fingerprint, flow on the client):
@@ -124,17 +168,6 @@ Clients are not created by this tool: direct inbounds are created without client
 The REALITY public key is stored in the inbound (streamSettings.realitySettings.settings.publicKey), as the panel
 expects. The host entry's sni is the server name for TLS (the direct domain) and REALITY (the REALITY target SNI).
 Hysteria's tlsSettings.serverName is the direct domain.
-
-## Host entries and addresses
-
-The address clients use is the host entry of an inbound (the panel builds subscriptions and outbounds from it).
-- Every direct inbound gets a host entry whose address is the chosen direct address: the domain, the resolved IP,
-  or 127.0.0.1. Over an IP, the TLS or REALITY server name (sni) is the domain. This gives the client outbound
-  settings.address = IP and tlsSettings.serverName = domain, the same shape as a working Hysteria outbound.
-- Templates with their own external proxy entries (for example some CDN and WS templates) keep those entries.
-- Menu 9, item 8 (Repair addresses) checks existing managed inbounds against their saved address. It fixes host
-  entry addresses, adds a missing host entry for direct inbounds, and sets the Host header of direct IP inbounds.
-  It shows the plan first and changes nothing until you confirm.
 
 ## Start-up session check
 
@@ -150,6 +183,23 @@ transports. Templates that use them are marked [deprecated] in every listing and
 the library: XHTTP templates (VLESS and VMess XHTTP, CDN and direct), VLESS TCP TLS Vision (28) for Trojan, and
 the REALITY templates (25, 26, 27). Note: the VMess to VLESS-encryption migration needs the panel's key
 generator (GET /panel/api/server/getNewVlessEnc) and is not implemented yet.
+
+## Listen on 127.0.0.1 for all inbounds (menu 6, item 9)
+
+Sets listen = 127.0.0.1 on every inbound on the panel, for a setup where nginx (later nginx or haproxy)
+receives the public connections. Before anything changes:
+- a red warning says that without a matching nginx setup, all connections are cut;
+- you are offered a panel database backup through the API (GET /panel/api/server/getDb), saved in backups/
+  with mode 600. It contains secrets: keep it private;
+- you must type CONFIRM in capital letters (anything else cancels).
+Host entries are not changed. Xray must be restarted afterwards. Item 10 restores managed inbounds to all addresses.
+
+## Direct domain 2 and VMess
+
+- Menu 3, item 14 sets a second direct domain. VLESS TCP TLS Vision (template 28) uses it as address, SNI and
+  certificate, so it does not share a domain with other TLS-over-TCP inbounds.
+- VMess over TCP with TLS (template 02) is deprecated and shares a domain with VLESS. It is created only after
+  an explicit yes (default no). In a batch, one question decides for all such templates.
 
 ## Confirmations
 
@@ -186,9 +236,12 @@ After a verified creation, the values used are saved in `state/local_inbounds/di
 
 ## Inbound library
 
-`inbounds/` holds 21 default templates generated from
-https://github.com/URT19/3x-ui-generator (commit 46439c4, file templates.js).
-Regenerate with `python3 tools/build_templates.py` after updating `tools/source_templates.json`.
+`inbounds/` holds 31 default templates, mostly derived from
+https://github.com/URT19/3x-ui-generator (commit 46439c4, file templates.js); the CDN set is generated from the TLS
+direct templates by `tools/build_cdn_templates.py`. Templates are plain JSON: edit or add files in `inbounds/`.
+`tools/build_templates.py` regenerates the non-CDN templates from `tools/source_templates.json`, which is the
+extracted upstream `templates.js` (made with `tools/extract_templates.js`). That extract is not included in the
+public release because the upstream repository has no license; extract it yourself if you need to rebuild.
 
 Templates have no fixed port. The port is entered when the inbound is created.
 Ports 80 and 443 are refused. The source template 12 default (443) is not used.
@@ -240,8 +293,7 @@ The codename and icon parts of the spec are not implemented yet.
   must be 0 to 32 on save, S1+56 must not equal S2, H values are distinct and at least 5, and the rekey maximum
   must be below the reject minimum.
 - Names that already exist on the panel get -2, -3 and so on. Remove old test inbounds before a real run.
-- Local CDN (HAProxy or Nginx): ports do not follow the Cloudflare rules (the earlier spec rule against Cloudflare
-  ports for local mode is replaced by this).
+- CDN configs always go through Cloudflare. There is no local route for them any more.
 - Hysteria2 (tls_hysteria_direct): TLS needs a certificate. The panel (validateInboundTLSCertificates) refuses
   any TLS inbound without one, so the template uses the direct domain certificate (CERT_DIRECT, KEY_DIRECT),
   the same as the other direct TLS templates. ECH does not replace this check. The salamander password is random
@@ -264,7 +316,7 @@ The codename and icon parts of the spec are not implemented yet.
   Templates exist for VMess, VLESS and Trojan only. amneziawg, masque, hysteria, tuic and mtproto are
   "pending". Fake site and relay have no templates yet.
 
-## Inventory export (menu 11)
+## Inventory export (menu 8)
 
 Reads the inbounds on the panel and merges them with local records. Each entry has: id, name, port, protocol,
 connection mode, transport, security, address, domain, path, template and version, certificate file paths,
@@ -277,12 +329,13 @@ inbounds-<time>.json and inbounds-<time>.yaml, and the paths are shown at the en
 
 ## Prerequisites (menu 1)
 
-Checks Python 3.10 or newer, openssl (required), curl and acme.sh (optional). If openssl or curl is
+Checks Python 3.10 or newer and openssl (required). Optional: curl, haproxy and nginx (needed for menu 11,
+proxy aggregation), and acme.sh. If openssl, curl, haproxy or nginx is
 missing and the system is Ubuntu, the apt-get command is shown as an argument list and runs only after
 CONFIRM (with sudo when not root). acme.sh is never installed automatically, because its installer is a
 remote script. Install it yourself, then check again.
 
-## Backup and restore (menu 13)
+## Backup and restore (menu 10)
 
 Backup (tar.gz, mode 0600) holds:
 - inbounds/*.json: inbound templates
@@ -304,3 +357,52 @@ Keep backups private: they contain the API token.
 ## Tests
 
     python3 -m unittest discover -s tests -t .
+
+## What this version does not do
+
+- It never adds clients or host entries to x-ui. Inbounds are created without clients, and subscription hosts are
+  left to the panel.
+- It does not configure, start, stop, or restart HAProxy or Nginx, and it does not write their configuration. Those
+  steps are described separately.
+- The HAProxy and Nginx generator, the aggregation wizard, the hub inbound, and the PROXY protocol option were removed.
+
+## Fallback proxies (menu 4, item 5)
+
+Five plain (no TLS) inbounds on 127.0.0.1, named NN-PROTOCOL-TRANSPORT-FB:
+31-VLESS-WS-FB, 32-VLESS-TCP-FB, 33-VLESS-HTTPUP-FB, 34-TROJAN-WS-FB, 35-TROJAN-HTTPUP-FB.
+Each has its own random path (WS and HTTPUpgrade), an empty host, and acceptProxyProtocol false. WS has
+heartbeatPeriod 30. VLESS TCP has the testseed from the reference config. VMess and Trojan TCP are not in the list.
+No address is asked, and no hosts or clients are created.
+
+Names no longer end with PLAIN. The suffix is kept only for TLS (-TLS) and REALITY (-REALITY).
+
+## Port rules (current)
+
+- Plain (no TLS) inbounds: the port ends with 80, for example 3080 or 21080.
+- TLS inbounds: the port ends with 3, for example 20003.
+- REALITY inbounds: the port ends with 5, for example 20005.
+- Ports 80 and 443 are never used. Cloudflare's HTTP and HTTPS ports are reserved for CDN configurations, so non-CDN
+  inbounds never use them (this includes 8443 and 8080).
+- A fixed port must match its ending and must not be reserved.
+
+## Direct TLS templates
+
+Besides VLESS TCP TLS Vision (direct domain 2), the direct TLS set now includes VMess WS, VLESS gRPC, and VLESS
+HTTPUpgrade (templates 36, 37 and 38). The VMess WS template is marked deprecated by Xray, as are the other WS, gRPC
+and HTTPUpgrade templates.
+
+## Duplicate removed
+
+Template 30 (VLESS Reality TCP without Vision) was removed. On the server it is the same REALITY inbound as 25, so
+the two only differed in the client flow.
+
+## IP host
+
+When a run uses an IP address (direct option 2 or a typed IP, ), the tool
+creates ONE host group named IP after the inbounds are created. It holds the confirmed address and is attached to
+every inbound created in that run. Port is 0 and sni is empty, so each inbound keeps its own port and server name.
+This is the only host entry the tool creates. Domain and 127.0.0.1 runs create no host.
+
+## VMess WS TLS (template 36)
+
+ALPN is h2 only. HTTP/1.1 is not listed.

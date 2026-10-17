@@ -32,6 +32,9 @@ class NetworkSettings:
     local_port: Optional[int] = None
     relay_address: str = ""             # Iran server domain or IP used by relay inbounds
     use_ip_addresses: bool = False      # on: connection addresses use the IP behind the domain
+    public_port: Optional[int] = None   # port written in host entries (for example 443 behind HAProxy)
+    direct_domain2: str = ""            # second direct domain: used by VLESS TCP TLS Vision
+    proxy_protocol: bool = False        # PROXY protocol between HAProxy, Nginx and the inbounds
 
 
 @dataclass
@@ -48,6 +51,7 @@ class Settings:
     hysteria_passwords: dict = field(default_factory=dict)
     reality_keys: dict = field(default_factory=dict)
     client_credentials: dict = field(default_factory=dict)
+    services: dict = field(default_factory=dict)
     settings_version: int = SETTINGS_VERSION
 
     def is_configured(self) -> bool:
@@ -60,14 +64,16 @@ NETWORK_MODES = ("random", "fixed")
 def _check_network(net: NetworkSettings) -> None:
     if not isinstance(net.cloudflare_ips, list) or not all(isinstance(x, str) for x in net.cloudflare_ips):
         raise SettingsError("network.cloudflare_ips must be a list of strings")
-    for name in ("direct_ip", "direct_domain", "cdn_domain", "local_ip", "relay_address"):
+    for name in ("direct_ip", "direct_domain", "direct_domain2", "cdn_domain", "local_ip", "relay_address"):
         if not isinstance(getattr(net, name), str):
             raise SettingsError(f"network.{name} must be a string")
+    if not isinstance(net.proxy_protocol, bool):
+        raise SettingsError("network.proxy_protocol must be true or false")
     if not isinstance(net.use_ip_addresses, bool):
         raise SettingsError("network.use_ip_addresses must be true or false")
     if net.port_mode not in NETWORK_MODES:
         raise SettingsError("network.port_mode must be random or fixed")
-    for name in ("fixed_port", "local_port"):
+    for name in ("fixed_port", "local_port", "public_port"):
         value = getattr(net, name)
         if value is not None and (not isinstance(value, int) or isinstance(value, bool)):
             raise SettingsError(f"network.{name} must be an integer or null")
@@ -88,6 +94,10 @@ def _check_types(settings: Settings) -> None:
     _check_network(settings.network)
     if not isinstance(settings.amnezia, dict):
         raise SettingsError("amnezia must be an object")
+    if not isinstance(settings.services, dict) or not all(
+        isinstance(k, str) and isinstance(v, dict) for k, v in settings.services.items()
+    ):
+        raise SettingsError("services must map template ids to objects")
     if not isinstance(settings.client_credentials, dict) or not all(
         isinstance(k, str) and isinstance(v, dict) for k, v in settings.client_credentials.items()
     ):

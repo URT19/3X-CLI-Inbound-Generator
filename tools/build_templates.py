@@ -27,10 +27,12 @@ ROOT = os.path.dirname(HERE)
 SOURCE_JSON = os.path.join(HERE, "source_templates.json")
 OUT_DIR = os.path.join(ROOT, "inbounds")
 
-PLACEHOLDER = re.compile(r"\{\{([A-Z_]+)\}\}")
+PLACEHOLDER = re.compile(r"\{\{([A-Z0-9_]+)\}\}")
 
 
 def connection_mode(template_id: str) -> str:
+    if template_id.startswith("fb_"):
+        return "fallback"
     if "_cdn" in template_id:
         return "cdn"
     if "_direct" in template_id:
@@ -166,6 +168,8 @@ def main() -> int:
     os.makedirs(OUT_DIR, exist_ok=True)
     for entry in entries:
         tid = entry["id"]
+        if "_cdn" in tid:
+            continue  # CDN templates are written by tools/build_cdn_templates.py
         if tid in seen:
             print(f"Duplicate template id: {tid}", file=sys.stderr)
             return 1

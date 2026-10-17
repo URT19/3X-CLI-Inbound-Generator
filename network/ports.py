@@ -90,3 +90,56 @@ def pick_cloudflare_port(allowed: frozenset, in_use: Iterable[int],
         return PREFERRED_CLOUDFLARE_PORT
     rng = rng or random.SystemRandom()
     return rng.choice(free)
+
+
+# Port endings by inbound type (project rule):
+#   plain (no TLS)  -> ends with 80, for example 3080 or 21080
+#   TLS             -> ends with 3,  for example 20003
+#   REALITY         -> ends with 5,  for example 20005
+PORT_RULES = {
+    "plain": lambda port: port % 100 == 80,
+    "tls": lambda port: port % 10 == 3,
+    "reality": lambda port: port % 10 == 5,
+}
+
+
+def port_rule_for(security: str) -> str:
+    if security == "reality":
+        return "reality"
+    if security == "tls":
+        return "tls"
+    return "plain"
+
+
+def excluded_ports(cloudflare: Optional[CloudflarePorts]) -> frozenset:
+    """Ports that non-CDN inbounds never use: 80 and 443 always, and every Cloudflare proxied port
+    (reserved for CDN configurations)."""
+    base = set(RESERVED_PORTS)
+    if cloudflare is not None:
+        base |= set(cloudflare.all_ports)
+    return frozenset(base)
+
+
+def check_ruled_port(port: int, rule: str, in_use: Iterable[int], cloudflare: Optional[CloudflarePorts]) -> None:
+    if not isinstance(port, int) or isinstance(port, bool) or not 1 <= port <= 65535:
+        raise PortError("Port must be between 1 and 65535")
+    if not PORT_RULES[rule](port):
+        raise PortError(f"Port {port} does not match the {rule} rule")
+    if port in excluded_ports(cloudflare):
+        raise PortError(f"Port {port} is reserved (80, 443 and Cloudflare ports are kept for other uses)")
+    if port in set(in_use):
+        raise PortError(f"Port {port} is already used by another inbound")
+
+
+def pick_ruled_port(low: int, high: int, rule: str, in_use: Iterable[int],
+                    cloudflare: Optional[CloudflarePorts], rng: Optional[random.Random] = None) -> int:
+    if not (1 <= low <= high <= 65535):
+        raise PortError("Random port range must satisfy 1 <= low <= high <= 65535")
+    taken = set(in_use)
+    excluded = excluded_ports(cloudflare)
+    candidates = [p for p in range(low, high + 1)
+                  if PORT_RULES[rule](p) and p not in excluded and p not in taken]
+    if not candidates:
+        raise PortError(f"No free port ending as the {rule} rule requires in {low}-{high}")
+    rng = rng or random.SystemRandom()
+    return rng.choice(candidates)

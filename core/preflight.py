@@ -24,18 +24,20 @@ from typing import Callable, Dict, List, Optional, Tuple
 from certs.checker import CertStatus, cert_paths
 from config.settings import NetworkSettings
 from network.cloudflare import CloudflarePorts
-from network.paths import TEMPLATE_PATH_KEYS, path_key, random_secret
+from network.paths import TEMPLATE_PATH_KEYS, path_key, random_path, random_secret
 from network.amnezia import AmneziaError, placeholders_for as amnezia_placeholders
 from network.reality import RealityError, generate_keypair as reality_keypair, generate_short_id as reality_short_id
-from network.ports import PortError, check_port, cloudflare_ports_for, pick_cloudflare_port, pick_random_port
+from network.ports import (PortError, check_ruled_port, cloudflare_ports_for, pick_cloudflare_port,
+                           pick_ruled_port, port_rule_for)
 from network.validators import RESERVED_PORTS
 
-PLACEHOLDER = re.compile(r"\{\{([A-Z_]+)\}\}")
+PLACEHOLDER = re.compile(r"\{\{([A-Z0-9_]+)\}\}")
 ALLOWED_PROTOCOLS = {"vless", "vmess", "trojan", "hysteria", "tuic", "amneziawg"}
 NATIVE_PROTOCOLS = {"tuic", "amneziawg"}
 PATH_NETWORKS = {"ws", "xhttp", "httpupgrade"}
 CERT_PAIRS = {"CERT_CDN": ("cdn", "fullchain"), "KEY_CDN": ("cdn", "privkey"),
-              "CERT_DIRECT": ("direct", "fullchain"), "KEY_DIRECT": ("direct", "privkey")}
+              "CERT_DIRECT": ("direct", "fullchain"), "KEY_DIRECT": ("direct", "privkey"),
+              "CERT_DIRECT2": ("direct2", "fullchain"), "KEY_DIRECT2": ("direct2", "privkey")}
 ACCEPTED_CERT_STATES = ("ok", "renew")
 
 
@@ -70,11 +72,25 @@ def resolve_values(
     needed = _needed_placeholders(template)
 
     # PORT
+    rule = port_rule_for(template.security)
     through_cloudflare = template.connection_mode == "cdn" and cdn_via == "cloudflare"
     if through_cloudflare:
-        # CDN reached through a domain or IP: only Cloudflare's ports, never 80 or 443.
+        # CDN through Cloudflare: only Cloudflare's ports, never 80 or 443.
         allowed = cloudflare_ports_for(template.security, cloudflare)
-        if allowed is None:
+        if allowed is not None and template.fixed_port:
+            # Fixed CDN ports come from the template (see tools/build_cdn_templates.py).
+            if template.fixed_port not in allowed and not template.origin_port:
+                res.problems.append(
+                    f"Port {template.fixed_port} is not a Cloudflare {template.security} port")
+            elif template.fixed_port in in_use:
+                res.problems.append(f"Port {template.fixed_port} is already used by another inbound")
+            else:
+                res.values["PORT"] = template.fixed_port
+                if template.origin_port and template.fixed_port not in allowed:
+                    res.warnings.append(
+                        f"{template.name}: port {template.fixed_port} is an origin port. Add a Cloudflare origin "
+                        f"rule that sends a Cloudflare port to it, and use that Cloudflare port in the host.")
+        elif allowed is None:
             res.problems.append("Cloudflare port list is not loaded; CDN ports cannot be chosen")
         elif network.port_mode == "fixed":
             if network.fixed_port in allowed:
@@ -87,44 +103,32 @@ def resolve_values(
             try:
                 res.values["PORT"] = pick_cloudflare_port(allowed, in_use, rng=rng)
             except PortError:
-                # Cloudflare's ports are used up: use a random port that is not a Cloudflare port,
-                # and tell the user to change it later.
-                try:
-                    res.values["PORT"] = pick_random_port(
-                        network.random_port_low, network.random_port_high, "local", in_use, cloudflare, rng=rng)
-                    res.warnings.append(
-                        f"No Cloudflare port left for this {template.security} CDN inbound; "
-                        f"it uses random port {res.values['PORT']}. Change it to a Cloudflare port later.")
-                except PortError as exc:
-                    res.problems.append(f"Port: {exc}")
+                res.problems.append("No Cloudflare port left for this CDN inbound; "
+                                    "use a different Cloudflare route or free a port")
     elif network.port_mode == "fixed":
-        # Local CDN and direct inbounds: the port does not matter for Cloudflare.
         if not network.fixed_port:
             res.problems.append("Fixed port is not set (menu 3, item 6)")
         else:
-            res.values["PORT"] = network.fixed_port
+            try:
+                check_ruled_port(network.fixed_port, rule, in_use, cloudflare)
+                res.values["PORT"] = network.fixed_port
+            except PortError as exc:
+                res.problems.append(f"Port: {exc}")
     else:
         try:
-            res.values["PORT"] = pick_random_port(
-                network.random_port_low, network.random_port_high,
-                template.connection_mode, in_use, cloudflare, rng=rng,
-            )
+            res.values["PORT"] = pick_ruled_port(
+                network.random_port_low, network.random_port_high, rule, in_use, cloudflare, rng=rng)
         except PortError as exc:
             res.problems.append(f"Port: {exc}")
-    # REALITY: port 8443 when it is free (443 is not used for inbounds); random otherwise.
-    if (template.security == "reality" and network.port_mode == "random" and "PORT" in res.values
-            and 8443 not in in_use and res.values["PORT"] != 8443):
-        res.values["PORT"] = 8443
-    if "PORT" in res.values and not through_cloudflare:
-        try:
-            check_port(int(res.values["PORT"]), template.connection_mode, in_use, cloudflare)
-        except PortError as exc:
-            res.problems.append(f"Port: {exc}")
-    if "PORT" in res.values and through_cloudflare and int(res.values["PORT"]) in in_use:
-        res.problems.append(f"Port {res.values['PORT']} is already used by another inbound")
 
     # Domains and Cloudflare address
-    domains = {"cdn": network.cdn_domain, "direct": network.direct_domain}
+    domains = {"cdn": network.cdn_domain, "direct": network.direct_domain,
+               "direct2": getattr(network, "direct_domain2", "")}
+    if "SUBDOMAIN_DIRECT2" in needed:
+        if domains["direct2"]:
+            res.values["SUBDOMAIN_DIRECT2"] = domains["direct2"]
+        else:
+            res.problems.append("Direct domain 2 is not set (menu 3, item 14)")
     if "SUBDOMAIN_CDN" in needed:
         if domains["cdn"]:
             res.values["SUBDOMAIN_CDN"] = domains["cdn"]
@@ -146,6 +150,9 @@ def resolve_values(
 
     # Paths
     for placeholder, transport in TEMPLATE_PATH_KEYS.items():
+        if placeholder in needed and template.connection_mode == "fallback":
+            res.values[placeholder] = random_path()  # fallback inbounds get their own path
+            continue
         if placeholder in needed:
             key = path_key(template.connection_mode, transport)
             value = (paths or {}).get(key)
@@ -209,7 +216,8 @@ def resolve_values(
     unknown = [p for p in needed if p not in res.values and p not in TEMPLATE_PATH_KEYS
                and p not in CERT_PAIRS and p not in ("SUBDOMAIN_CDN", "SUBDOMAIN_DIRECT",
                                                      "WHITELIST_IP", "PORT", "HY_PASSWORD", "FINGERPRINT")
-                                                 and not p.startswith(("AWG_", "REALITY_"))]
+                                                 and not p.startswith(("AWG_", "REALITY_"))
+                                                 and p != "SUBDOMAIN_DIRECT2"]
     for name in unknown:
         res.problems.append(f"No source defined for placeholder {name}")
     return res
