@@ -1,5 +1,11 @@
 # راهنمای سریع ۳X CLI Inbound Generator (فارسی)
 
+
+این اسکریپت پایتون به پنل سنایی نسخه های 3.0.0 به بالا متصل میشود و پس از دریافت اطلاعات از شما، انواع و اقسام اینباندهای مختلف رو براتون میسازه
+
+--
+
+
 اسکریپت ترمینالی برای ساخت خودکار اینباند روی پنل سنایی (3x-ui نسخه 3.9.0 به بعد). فقط Python استاندارد لازم دارد.
 
 > در همه مثال‌ها `example.com` و `203.0.113.10` نمونه‌اند؛ مقدار خودتان را بگذارید.
@@ -44,7 +50,8 @@ python3 main.py
 
 **ب) وارد کردن در اسکریپت**
 
-منوی اصلی ← `2` (Panel connection) ← `2` (Edit address and token):
+منوی اصلی ←
+`2` (Panel connection) ← `2` (Edit address and token):
 
 ```
 Panel address [none]: https://203.0.113.10:2053/abcd1234
@@ -70,6 +77,10 @@ Connection OK: the panel reports N inbounds.
 
 منوی `3` (Network settings):
 
+```
+**3) Network and connection settings**
+```
+
 | گزینه | کاربرد | مثال |
 |---|---|---|
 | `3` | IP مستقیم سرور | `203.0.113.10` |
@@ -79,6 +90,10 @@ Connection OK: the panel reports N inbounds.
 
 ## ۶) گواهی SSL
 
+
+```
+ **5) SSL certificate management**
+```
 منوی `5` ← `1`: دامنه را بدهید؛ اسکریپت وضعیت گواهی را بررسی می‌کند و در صورت نبود، با acme.sh صادر می‌کند.
 گواهی‌ها اینجا ذخیره می‌شوند:
 
@@ -93,6 +108,9 @@ Connection OK: the panel reports N inbounds.
 
 ## ۷) ساخت اینباندها
 
+```
+ **4) Generate Inbounds**
+```
 منوی `4` (Generate Inbounds):
 
 | گزینه | ساخت |
