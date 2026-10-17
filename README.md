@@ -1,5 +1,9 @@
 # 3X CLI Inbound Generator  v1.33.1
 
+
+[توضیحات فارسی](https://github.com/URT19/3X-CLI-Inbound-Generator/blob/main/readme-fa.md)
+
+
 Interactive terminal manager for the Sanaei 3x-ui panel (v3.9.0 and later, checked against v3.10.0). It creates
 DIRECT, CDN (behind Cloudflare), relay, fake-site and fallback inbounds from JSON templates, checks and requests
 SSL certificates, and exports an inventory. Every change to the panel is previewed and confirmed first.
